@@ -161,4 +161,43 @@ var _ = Describe("Init env overrides", func() {
 
 		Expect(parameters["ApplicationRepo"]).To(Equal("https://github.com/acme/hello-world.git"))
 	})
+
+	It("should prioritize earlier env files over later ones", func() {
+		workspace, err := setupTestWorkspace()
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanupTestWorkspace(workspace)
+
+		// later env (lower priority)
+		laterEnvPath := filepath.Join(workspace, "later.env")
+		err = os.WriteFile(laterEnvPath, []byte(
+			"BLCLI_TERRAFORM_ORGANIZATION_ID=111111111111\n"+
+				"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID=11AAAA-111111-111111\n",
+		), 0644)
+		Expect(err).NotTo(HaveOccurred())
+
+		// earlier env (higher priority)
+		earlierEnvPath := filepath.Join(workspace, "earlier.env")
+		err = os.WriteFile(earlierEnvPath, []byte(
+			"BLCLI_TERRAFORM_ORGANIZATION_ID=222222222222\n"+
+				"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID=22BBBB-222222-222222\n",
+		), 0644)
+		Expect(err).NotTo(HaveOccurred())
+
+		base := renderer.ArgsData{
+			renderer.FieldTerraform: map[string]interface{}{
+				renderer.FieldGlobal: map[string]interface{}{
+					"OrganizationID":   "123456789012",
+					"BillingAccountID": "01ABCD-2EFGH3-4IJKL5",
+				},
+			},
+		}
+
+		merged, err := bootstrap.ApplyInitEnvOverrides(base, []string{earlierEnvPath, laterEnvPath})
+		Expect(err).NotTo(HaveOccurred())
+
+		tf := merged[renderer.FieldTerraform].(map[string]interface{})
+		global := tf[renderer.FieldGlobal].(map[string]interface{})
+		Expect(global["OrganizationID"]).To(Equal("222222222222"))
+		Expect(global["BillingAccountID"]).To(Equal("22BBBB-222222-222222"))
+	})
 })
