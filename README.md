@@ -37,6 +37,7 @@ args.yaml  +  bl-template  →  blcli  →  GCP projects + GKE clusters + ArgoCD
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Prepare](#prepare)
 - [Installation](#installation)
 - [Quick Start (5 minutes)](#quick-start-5-minutes)
 - [Full Workflow](#full-workflow)
@@ -106,6 +107,72 @@ blcli check
 - An SSH deploy key (`argocd_github.pub`) added to that repository
 - GitOps repo URLs in **SSH format** (`git@github.com:org/repo.git`) in `.env` — HTTP URLs will cause ArgoCD auth failures
 - ArgoCD sealed secret generated **without** the `useSshAgent` field (its presence breaks SSH authentication)
+
+---
+
+## Prepare
+
+### 1. GCP Account
+
+- A valid Google Cloud Platform account
+- Billing enabled with a linked credit/debit card
+- Sufficient quota for required services (for example, GKE, networking, storage)
+
+### 2. GitHub Org
+
+- A dedicated GitHub Organization (for example: `ggsrc`)
+- One or more repositories to store:
+  - Infrastructure code (Terraform / manifests)
+  - Application code
+  - GitOps configurations
+
+### 3. OAuth Application for Argo CD
+
+- Create an OAuth App in the GitHub Organization
+- Configure it for Argo CD authentication
+- Required setup:
+  - **Homepage URL**: Argo CD server URL
+  - **Callback URL**:
+
+    ```bash
+    https://<argocd-domain>/api/dex/callback
+    ```
+
+- Save and securely store:
+  - Client ID
+  - Client Secret
+
+### 4. Local Environment Setup (GCP Authentication)
+
+- Install the Google Cloud CLI (`gcloud`)
+- Authenticate your user account:
+
+  ```bash
+  gcloud auth login
+  ```
+
+- Configure Application Default Credentials (ADC):
+
+  ```bash
+  gcloud auth application-default login
+  ```
+
+### 5. Developer Tooling (Required CLI Tools)
+
+Install the following tools on your local machine:
+
+- **kubectl**: Manage Kubernetes clusters and resources
+- **istioctl**: Install and manage Istio (for example, Gateway API, Ambient mode)
+- **Terraform**: Provision GCP resources (GKE, VPC, IAM, etc.)
+- **Git**: Source code and GitOps workflow
+
+### 6. Optional but Recommended
+
+- Domain name (for Argo CD / services exposure)
+- DNS management (for example, Cloud DNS or external provider)
+- Access control:
+  - GitHub team permissions
+  - GCP IAM roles
 
 ---
 
