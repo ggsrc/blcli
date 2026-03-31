@@ -154,7 +154,7 @@ func cleanupTestWorkspace(workspace string) error {
 
 // loadTestTemplateRepo loads a local template repository for testing.
 // It looks for bl-template relative to the current working directory.
-// When tests run from blcli-go (go test ./pkg/cli/...), cwd may be blcli-go or blcli-go/pkg/cli.
+// When tests run from blcli (go test ./pkg/cli/...), cwd may be blcli or blcli/pkg/cli.
 func loadTestTemplateRepo() (string, *template.Loader, error) {
 	cwd, err := os.Getwd()
 	if err != nil {

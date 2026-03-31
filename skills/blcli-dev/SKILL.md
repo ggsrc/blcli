@@ -1,17 +1,17 @@
 ---
 name: blcli-dev
-description: Use this skill when working on blcli-go infrastructure workflows, template-repo changes, or operational commands driven by `blcli`. Apply it for `init`, `init-args`, `check`, `apply`, `status`, `rollback`, debugging generated Terraform/Kubernetes/GitOps output, and keeping `blcli-go` behavior aligned with `bl-template` conventions.
+description: Use this skill when working on blcli infrastructure workflows, template-repo changes, or operational commands driven by `blcli`. Apply it for `init`, `init-args`, `check`, `apply`, `status`, `rollback`, debugging generated Terraform/Kubernetes/GitOps output, and keeping `blcli` behavior aligned with `bl-template` conventions.
 ---
 
 # blcli Dev
 
-Operate `blcli` as the primary interface for infra workflows in this repository. Treat `blcli-go` and `bl-template` as a coupled system: template changes can break command behavior, and command behavior often depends on template layout, naming, and install scripts.
+Operate `blcli` as the primary interface for infra workflows in this repository. Treat `blcli` and `bl-template` as a coupled system: template changes can break command behavior, and command behavior often depends on template layout, naming, and install scripts.
 
 ## Core Workflow
 
 1. Identify the module and command family involved: `init-args`, `init`, `check`, `apply`, `status`, or `rollback`.
 2. Read the relevant CLI entrypoint under `pkg/cli/` and bootstrap implementation under `pkg/bootstrap/`.
-3. If the task touches generated infrastructure, inspect the corresponding files in `bl-template` before changing `blcli-go`.
+3. If the task touches generated infrastructure, inspect the corresponding files in `bl-template` before changing `blcli`.
 4. Prefer reproducing the problem with `./bin/blcli ...` or `go test` before patching behavior.
 5. After changes, validate the narrowest useful scope first, then broader integration flows if the environment allows it.
 

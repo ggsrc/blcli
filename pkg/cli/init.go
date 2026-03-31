@@ -81,7 +81,7 @@ Cache Management:
 
   # Use private template repository (requires authentication)
   export GITHUB_TOKEN=your_token_here
-  blcli init github.com/NFTGalaxy/bl-template -a args.yaml
+  blcli init github.com/ggsrc/bl-template -a args.yaml
 
   # Use multiple args files (earlier files override later ones)
   blcli init github.com/user/repo -a base-args.yaml -a override-args.yaml

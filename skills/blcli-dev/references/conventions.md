@@ -1,9 +1,9 @@
 # Conventions
 
-## `blcli-go` and `bl-template` move together
+## `blcli` and `bl-template` move together
 
 - A path listed in `bl-template/*/config.yaml` must exist in the template repo.
-- A template-only behavior change is often really a system change because `blcli-go` may depend on file names, layout, or script names.
+- A template-only behavior change is often really a system change because `blcli` may depend on file names, layout, or script names.
 - When editing Kubernetes component install behavior, inspect:
   - `bl-template/kubernetes/config.yaml`
   - the component directory under `bl-template/kubernetes/components/...`

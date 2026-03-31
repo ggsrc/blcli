@@ -476,7 +476,7 @@ func SetupTestEnvironment() (*TestEnvironment, error) {
 
 	// Use GitHub repository for e2e tests
 	// For private repos, authentication is required via GITHUB_TOKEN env or gh cli
-	templateRepo := "github.com/NFTGalaxy/bl-template"
+	templateRepo := "github.com/ggsrc/bl-template"
 
 	// Check if we should use local test template (for unit tests)
 	// This can be overridden by environment variable for e2e tests
@@ -520,15 +520,15 @@ func TeardownTestEnvironment(env *TestEnvironment) {
 // ExecuteBlcliCommand executes a blcli command
 func ExecuteBlcliCommand(args ...string) error {
 	// Get the project root directory
-	// integration/helpers.go -> blcli-go/
+	// integration/helpers.go -> blcli/
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Find project root (blcli-go directory)
+	// Find project root (blcli directory)
 	// Current dir might be integration/ or integration/terraform/ etc.
-	// We need to go up to blcli-go/
+	// We need to go up to blcli/
 	projectRoot := filepath.Join(currentDir, "..", "..")
 	absRoot, err := filepath.Abs(projectRoot)
 	if err != nil {

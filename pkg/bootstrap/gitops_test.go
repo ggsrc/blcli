@@ -161,7 +161,7 @@ func cleanupGitopsTestWorkspace(workspace string) error {
 }
 
 // loadGitopsTestTemplateRepo loads bl-template for gitops tests.
-// Tries ../bl-template (when cwd is blcli-go) and ../../../bl-template (when cwd is pkg/bootstrap).
+// Tries ../bl-template (when cwd is blcli) and ../../../bl-template (when cwd is pkg/bootstrap).
 func loadGitopsTestTemplateRepo() (string, *template.Loader, error) {
 	cwd, err := os.Getwd()
 	if err != nil {

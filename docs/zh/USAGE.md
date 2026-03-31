@@ -1,7 +1,6 @@
 # blcli Usage Guide
 
 This document provides detailed usage examples and best practices for using `blcli`.
-For Chinese documentation, see [USAGE_zh.md](./USAGE_zh.md).
 
 ## Table of Contents
 
@@ -239,41 +238,41 @@ This allows you to:
 - Gradually add components as needed
 - Use different component sets for different projects
 
-#### GitOps Output
+#### GitOps 输出
 
-When `args.yaml` contains a `gitops` section (`argocd.project` and `apps`), `blcli init` generates GitOps configuration under `{workspace}/gitops/{project}/{app_name}/`, including Deployment/StatefulSet, Service, ConfigMap, and ArgoCD Application (`app.yaml`) manifests.
+当 `args.yaml` 含有 `gitops` 段（`argocd.project` 与 `apps`）时，`blcli init` 会生成 GitOps 配置到 `{workspace}/gitops/{project}/{app_name}/`，包含 Deployment/StatefulSet、Service、ConfigMap、ArgoCD Application（`app.yaml`）等。
 
 ### `blcli apply`
 
-Deploy generated configuration or initialize repositories. Subcommands include: `terraform`, `kubernetes`, `gitops`, `all`, and `init-repos`.
+对已生成配置执行部署或仓库初始化。子命令：`terraform`、`kubernetes`、`gitops`、`all`、`init-repos`。
 
 #### apply init-repos
 
-For `terraform`, `kubernetes`, and `gitops` directories, this command runs: `git init` -> confirm `gh repo create` -> confirm `git add` / `commit` / `push`. It requires `gh` to be installed and authenticated.
+对 terraform/kubernetes/gitops 三个目录分别执行：`git init` → 确认后 `gh repo create` → 确认后 `git add` / `commit` / `push`。需已安装并登录 `gh`。
 
 ```bash
-# Required: `-d` root directory (contains `terraform`, `kubernetes`, `gitops`), `-o/--org` GitHub organization or username
+# 必填：-d 工作目录（包含 terraform、kubernetes、gitops），-o/--org GitHub 组织或用户名
 blcli apply init-repos --org myorg -d ./workspace/output
 
-# Optional: custom subdirectory paths
+# 自定义各目录路径（可选）
 blcli apply init-repos -o myorg -d ./out --terraform-dir ./out/tf --kubernetes-dir ./out/k8s --gitops-dir ./out/gitops
 ```
 
-**Flags:**
-- `-d, --dir`: Root working directory (required)
-- `-o, --org`: GitHub organization or username (required)
-- `--terraform-dir`: Default `{dir}/terraform`
-- `--kubernetes-dir`: Default `{dir}/kubernetes`
-- `--gitops-dir`: Default `{dir}/gitops`
+**Flags：**
+- `-d, --dir`：工作目录根路径（必填）
+- `-o, --org`：GitHub 组织或用户名（必填）
+- `--terraform-dir`：默认 `{dir}/terraform`
+- `--kubernetes-dir`：默认 `{dir}/kubernetes`
+- `--gitops-dir`：默认 `{dir}/gitops`
 
 #### apply gitops
 
-Runs `kubectl apply -f` for all GitOps `app.yaml` (ArgoCD Application) files. Actual app rollout is handled by ArgoCD sync.
+对 GitOps 目录下所有 `app.yaml`（ArgoCD Application）执行 `kubectl apply -f`。实际应用部署由 ArgoCD 同步完成。
 
 ```bash
 blcli apply gitops -d ./workspace/output/gitops --args args.yaml
 
-# Specify kubeconfig and context
+# 指定 kubeconfig 与 context
 blcli apply gitops -d ./generated/gitops --args args.yaml --kubeconfig ~/.kube/config --context my-cluster
 ```
 
@@ -534,31 +533,31 @@ vim args.yaml
 blcli init terraform -r github.com/ggsrc/bl-template -a args.yaml
 ```
 
-### Workflow 5: GitOps Generation and Deployment
+### Workflow 5: GitOps 生成与部署
 
 ```bash
-# 1. init-args includes gitops section (if template has gitops/config.yaml and default.yaml)
+# 1. init-args 会包含 gitops 段（若模板有 gitops/config.yaml 与 default.yaml）
 blcli init-args -r github.com/ggsrc/bl-template -o args.yaml
 
-# 2. Fill gitops.argocd.project and gitops.apps in args.yaml
+# 2. 在 args.yaml 中填写 gitops.argocd.project、gitops.apps（ApplicationName、SourcePath、SourceRepoURL 等）
 vim args.yaml
 
-# 3. Generate GitOps config into {workspace}/gitops/{project}/{app_name}/
+# 3. init 生成 gitops 配置到 {workspace}/gitops/{project}/{app_name}/
 blcli init -r github.com/ggsrc/bl-template -a args.yaml -w
 
-# 4. Apply ArgoCD Applications
+# 4. 对 ArgoCD Application 执行 kubectl apply
 blcli apply gitops -d ./workspace/output/gitops --args args.yaml
 ```
 
-### Workflow 6: Create and Push GitHub Repositories with init-repos
+### Workflow 6: init-repos 创建 GitHub 仓库并推送
 
 ```bash
-# 1. Generate terraform/kubernetes/gitops directories first
+# 1. 先完成 init 生成 terraform/kubernetes/gitops 目录
 blcli init -r github.com/ggsrc/bl-template -a args.yaml -w --output ./workspace/output
 
-# 2. Run git init, create GitHub repos, and push for all three directories (interactive confirmation)
+# 2. 对三个目录分别 git init、创建 GitHub 仓库、提交推送（需交互输入 Y 确认）
 blcli apply init-repos -o myorg -d ./workspace/output
-# Requires authenticated GitHub CLI: gh auth login
+# 需已安装并登录 gh：gh auth login
 ```
 
 ## Troubleshooting

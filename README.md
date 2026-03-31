@@ -9,7 +9,7 @@
 [![Go Version](https://img.shields.io/badge/go-1.21%2B-00ADD8?style=flat-square&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)]()
-[![Template](https://img.shields.io/badge/template-bl--template-orange?style=flat-square)](https://github.com/NFTGalaxy/bl-template)
+[![Template](https://img.shields.io/badge/template-bl--template-orange?style=flat-square)](https://github.com/ggsrc/bl-template)
 
 </div>
 
@@ -114,8 +114,8 @@ blcli check
 ### From source (recommended)
 
 ```bash
-git clone https://github.com/NFTGalaxy/blcli-go
-cd blcli-go
+git clone https://github.com/ggsrc/blcli
+cd blcli
 
 # Build binary in current directory
 go build -o blcli ./cmd/blcli
@@ -188,7 +188,7 @@ blcli destroy terraform --args=args.yaml
 ### Stage 1: Build
 
 ```bash
-cd blcli-go
+cd blcli
 go build -o blcli ./cmd/blcli
 go install ./cmd/blcli     # optional: make globally available
 ```
@@ -202,7 +202,7 @@ go install ./cmd/blcli     # optional: make globally available
 blcli init-args -f ../bl-template
 
 # From a remote GitHub repository
-blcli init-args github.com/NFTGalaxy/bl-template
+blcli init-args github.com/ggsrc/bl-template
 ```
 
 This writes `args.yaml` and `.env` to the current directory with all available parameters pre-populated.
@@ -489,7 +489,7 @@ blcli init-args [template-repo] [flags]
 
 # Examples
 blcli init-args                                          # uses default template
-blcli init-args github.com/NFTGalaxy/bl-template        # from GitHub
+blcli init-args github.com/ggsrc/bl-template        # from GitHub
 blcli init-args ../bl-template                          # from local path
 blcli init-args github.com/org/repo@v2.0.0             # pinned tag
 blcli init-args ../bl-template -o myconfig.yaml        # custom output path
@@ -1098,4 +1098,4 @@ terraform state pull | jq '.resources | length'
 
 ## License
 
-MIT © NFTGalaxy
+MIT © ggsrc

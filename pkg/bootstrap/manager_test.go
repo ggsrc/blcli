@@ -171,7 +171,7 @@ func loadTestTemplateRepo() (string, *template.Loader, error) {
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
 		// Fallback: try relative path from current working directory
 		cwd, _ := os.Getwd()
-		// Try to find bl-template relative to blcli-go
+		// Try to find bl-template relative to blcli
 		repoPath = filepath.Join(cwd, "..", "..", "..", "bl-template")
 		absPath, err := filepath.Abs(repoPath)
 		if err == nil {

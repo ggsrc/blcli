@@ -136,7 +136,7 @@ parameters:
 
 // TestRun_RealFileLoad loads real YAML and template to mimic production; skipped if files missing.
 func TestRun_RealFileLoad(t *testing.T) {
-	// From blcli-go/pkg/validator: repo root (blcli) is ../../..
+	// From blcli/pkg/validator: repo root (blcli) is ../../..
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
 	argsPath := filepath.Join(repoRoot, "workspace", "validation-test-invalid.yaml")
 	templatePath := filepath.Join(repoRoot, "bl-template")
