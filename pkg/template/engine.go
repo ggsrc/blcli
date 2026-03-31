@@ -123,8 +123,9 @@ func RenderWithArgs(tmplStr string, data interface{}, args renderer.ArgsData) (s
 			}
 		}
 
-		// Flatten terraform.global to top level (only if not already in args.global)
-		// This handles cases where args.global is not yet merged
+		// Flatten terraform.global to top level.
+		// terraform.global is more specific than top-level global and should override
+		// conflicting keys during rendering.
 		if k == renderer.FieldTerraform {
 			terraformMap := toMapStringInterface(v)
 			if terraformMap != nil {
@@ -132,10 +133,7 @@ func RenderWithArgs(tmplStr string, data interface{}, args renderer.ArgsData) (s
 					globalMap := toMapStringInterface(tfGlobal)
 					if globalMap != nil {
 						for gk, gv := range globalMap {
-							// Only set if not already in dataMap (from args.global)
-							if _, exists := dataMap[gk]; !exists {
-								dataMap[gk] = gv
-							}
+							dataMap[gk] = gv
 						}
 					}
 				}

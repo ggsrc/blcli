@@ -200,4 +200,37 @@ var _ = Describe("Init env overrides", func() {
 		Expect(global["OrganizationID"]).To(Equal("222222222222"))
 		Expect(global["BillingAccountID"]).To(Equal("22BBBB-222222-222222"))
 	})
+
+	It("should override terraform globals for parsed YAML args", func() {
+		workspace, err := setupTestWorkspace()
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanupTestWorkspace(workspace)
+
+		argsPath := filepath.Join(workspace, "args.yaml")
+		err = os.WriteFile(argsPath, []byte(`
+terraform:
+  global:
+    OrganizationID: "0"
+    BillingAccountID: "01ABCD-2EFGH3-4IJKL5"
+`), 0644)
+		Expect(err).NotTo(HaveOccurred())
+
+		envPath := filepath.Join(workspace, "override.env")
+		err = os.WriteFile(envPath, []byte(
+			"BLCLI_TERRAFORM_ORGANIZATION_ID=888888888888\n"+
+				"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID=88YYYY-888888-888888\n",
+		), 0644)
+		Expect(err).NotTo(HaveOccurred())
+
+		base, err := renderer.LoadArgs(argsPath)
+		Expect(err).NotTo(HaveOccurred())
+
+		merged, err := bootstrap.ApplyInitEnvOverrides(base, []string{envPath})
+		Expect(err).NotTo(HaveOccurred())
+
+		tf := merged[renderer.FieldTerraform].(map[string]interface{})
+		global := tf[renderer.FieldGlobal].(map[string]interface{})
+		Expect(global["OrganizationID"]).To(Equal("888888888888"))
+		Expect(global["BillingAccountID"]).To(Equal("88YYYY-888888-888888"))
+	})
 })
