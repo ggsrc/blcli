@@ -130,32 +130,21 @@ func buildEnvOverrideArgs(base renderer.ArgsData, env map[string]string) (render
 	override := make(renderer.ArgsData)
 
 	tfGlobal := make(map[string]interface{})
-	// Safety: do NOT let .env override explicitly provided terraform.global values in args.
-	// This prevents surprises (and supports sentinel values like OrganizationID="0").
-	existingTFGlobal := toStringMap(toStringMap(base[renderer.FieldTerraform])[renderer.FieldGlobal])
-	if existingTFGlobal == nil {
-		existingTFGlobal = map[string]interface{}{}
+	if organizationID := firstNonEmpty(env,
+		"BLCLI_TERRAFORM_ORGANIZATION_ID",
+		"BLCLI_ORGANIZATION_ID",
+		"TERRAFORM_ORGANIZATION_ID",
+		"ORGANIZATION_ID",
+	); organizationID != "" {
+		tfGlobal["OrganizationID"] = organizationID
 	}
-
-	if _, alreadySet := existingTFGlobal["OrganizationID"]; !alreadySet {
-		if organizationID := firstNonEmpty(env,
-			"BLCLI_TERRAFORM_ORGANIZATION_ID",
-			"BLCLI_ORGANIZATION_ID",
-			"TERRAFORM_ORGANIZATION_ID",
-			"ORGANIZATION_ID",
-		); organizationID != "" {
-			tfGlobal["OrganizationID"] = organizationID
-		}
-	}
-	if _, alreadySet := existingTFGlobal["BillingAccountID"]; !alreadySet {
-		if billingAccountID := firstNonEmpty(env,
-			"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID",
-			"BLCLI_BILLING_ACCOUNT_ID",
-			"TERRAFORM_BILLING_ACCOUNT_ID",
-			"BILLING_ACCOUNT_ID",
-		); billingAccountID != "" {
-			tfGlobal["BillingAccountID"] = billingAccountID
-		}
+	if billingAccountID := firstNonEmpty(env,
+		"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID",
+		"BLCLI_BILLING_ACCOUNT_ID",
+		"TERRAFORM_BILLING_ACCOUNT_ID",
+		"BILLING_ACCOUNT_ID",
+	); billingAccountID != "" {
+		tfGlobal["BillingAccountID"] = billingAccountID
 	}
 	if len(tfGlobal) > 0 {
 		tfOverride := buildTerraformGlobalOverrides(base, tfGlobal)
