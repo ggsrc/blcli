@@ -1,0 +1,16 @@
+global:
+  GlobalName: "test-org"
+  Workspace: "workspace/integration-test"
+
+terraform:
+  version: "1.0.0"
+  global:
+    OrganizationID: "123456789012"
+    BillingAccountID: "01ABCD-2EFGH3-4IJKL5"
+    TerraformBackendBucket: "test-codestore"
+    TerraformVersion: "1.5.0"
+  projects:
+    - name: "test-project"
+      global:
+        ProjectName: "test-project"
+

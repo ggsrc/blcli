@@ -1,0 +1,4 @@
+interface:
+  display_name: "blcli Dev"
+  short_description: "Guide blcli infra workflows safely."
+  default_prompt: "Use $blcli-dev to work on blcli-go infra workflows, template changes, and operational commands."
