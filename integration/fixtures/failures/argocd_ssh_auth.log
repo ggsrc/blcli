@@ -1,0 +1,4 @@
+argocd sync failed:
+repository not accessible: ssh: handshake failed: Permission denied (publickey)
+
+The repository secret contains useSshAgent.

@@ -54,6 +54,7 @@ func ExecuteApplyAll(opts ApplyAllOptions) error {
 			AutoApprove:     opts.TerraformAutoApprove,
 			SkipBackend:     opts.TerraformSkipBackend,
 			DryRun:          opts.TerraformDryRun,
+			ProgressTracker: progressTracker,
 		}
 
 		if err := ExecuteApplyTerraform(terraformOpts); err != nil {
@@ -99,6 +100,7 @@ func ExecuteApplyAll(opts ApplyAllOptions) error {
 			DryRun:                  opts.KubernetesDryRun,
 			Wait:                    opts.KubernetesWait,
 			ComponentWaitAfterApply: 30 * time.Second, // Wait after each component before next
+			ProgressTracker:         progressTracker,
 		}
 
 		// For apply all, template repo is not available, so pass nil
@@ -138,18 +140,19 @@ func ExecuteApplyAll(opts ApplyAllOptions) error {
 		fmt.Println("🔄 Step 3: Applying GitOps")
 		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		gitopsOpts := ApplyGitOpsOptions{
-			GitOpsDir:    opts.GitOpsDir,
-			ArgsPaths:    opts.ArgsPaths,
-			Kubeconfig:   opts.KubernetesKubeconfig,
-			Context:      opts.KubernetesContext,
-			CreateRepo:   opts.GitOpsCreateRepo,
-			RepoURL:      opts.GitOpsRepoURL,
-			Branch:       opts.GitOpsBranch,
-			ArgoCDServer: opts.GitOpsArgoCDServer,
-			ArgoCDToken:  opts.GitOpsArgoCDToken,
-			Timeout:      30 * time.Minute, // Default timeout
-			SkipSync:     opts.GitOpsSkipSync,
-			DryRun:       opts.GitOpsDryRun,
+			GitOpsDir:       opts.GitOpsDir,
+			ArgsPaths:       opts.ArgsPaths,
+			Kubeconfig:      opts.KubernetesKubeconfig,
+			Context:         opts.KubernetesContext,
+			CreateRepo:      opts.GitOpsCreateRepo,
+			RepoURL:         opts.GitOpsRepoURL,
+			Branch:          opts.GitOpsBranch,
+			ArgoCDServer:    opts.GitOpsArgoCDServer,
+			ArgoCDToken:     opts.GitOpsArgoCDToken,
+			Timeout:         30 * time.Minute, // Default timeout
+			SkipSync:        opts.GitOpsSkipSync,
+			DryRun:          opts.GitOpsDryRun,
+			ProgressTracker: progressTracker,
 		}
 
 		if err := ExecuteApplyGitOps(gitopsOpts); err != nil {

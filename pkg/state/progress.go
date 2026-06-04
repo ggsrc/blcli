@@ -38,12 +38,15 @@ type ModuleProgress struct {
 
 // StepProgress represents progress of a single step
 type StepProgress struct {
-	Name         string     `json:"name" yaml:"name"`
-	Status       string     `json:"status" yaml:"status"` // "pending", "in_progress", "completed", "failed", "skipped"
-	StartedAt    *time.Time `json:"started_at,omitempty" yaml:"started_at,omitempty"`
-	CompletedAt  *time.Time `json:"completed_at,omitempty" yaml:"completed_at,omitempty"`
-	Duration     *string    `json:"duration,omitempty" yaml:"duration,omitempty"` // e.g., "10s", "2m30s"
-	ErrorMessage string     `json:"error_message,omitempty" yaml:"error_message,omitempty"`
+	Name          string     `json:"name" yaml:"name"`
+	Status        string     `json:"status" yaml:"status"` // "pending", "in_progress", "completed", "failed", "skipped"
+	Command       string     `json:"command,omitempty" yaml:"command,omitempty"`
+	OutputExcerpt string     `json:"output_excerpt,omitempty" yaml:"output_excerpt,omitempty"`
+	ErrorLocation string     `json:"error_location,omitempty" yaml:"error_location,omitempty"`
+	StartedAt     *time.Time `json:"started_at,omitempty" yaml:"started_at,omitempty"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty" yaml:"completed_at,omitempty"`
+	Duration      *string    `json:"duration,omitempty" yaml:"duration,omitempty"` // e.g., "10s", "2m30s"
+	ErrorMessage  string     `json:"error_message,omitempty" yaml:"error_message,omitempty"`
 }
 
 // GetProgressDir returns the path to the progress directory
@@ -96,6 +99,38 @@ func LoadProgress(operationID string) (*Progress, error) {
 	return &progress, nil
 }
 
+// ListProgress loads all valid progress files.
+func ListProgress() ([]*Progress, error) {
+	progressDir, err := GetProgressDir()
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(progressDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*Progress{}, nil
+		}
+		return nil, fmt.Errorf("failed to read progress directory: %w", err)
+	}
+
+	var progresses []*Progress
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		operationID := strings.TrimSuffix(entry.Name(), ".yaml")
+		progress, err := LoadProgress(operationID)
+		if err != nil || progress == nil {
+			continue
+		}
+		progresses = append(progresses, progress)
+	}
+
+	return progresses, nil
+}
+
 // SaveProgress saves progress to file
 func SaveProgress(progress *Progress) error {
 	if err := EnsureProgressDir(); err != nil {
@@ -121,32 +156,14 @@ func SaveProgress(progress *Progress) error {
 
 // FindIncompleteProgress finds incomplete progress files
 func FindIncompleteProgress() ([]*Progress, error) {
-	progressDir, err := GetProgressDir()
+	progresses, err := ListProgress()
 	if err != nil {
 		return nil, err
 	}
 
-	entries, err := os.ReadDir(progressDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*Progress{}, nil
-		}
-		return nil, fmt.Errorf("failed to read progress directory: %w", err)
-	}
-
 	var incomplete []*Progress
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-			continue
-		}
-
-		operationID := strings.TrimSuffix(entry.Name(), ".yaml")
-		progress, err := LoadProgress(operationID)
-		if err != nil {
-			continue // Skip invalid files
-		}
-
-		if progress != nil && (progress.Status == "in_progress" || progress.Status == "pending") {
+	for _, progress := range progresses {
+		if progress.Status == "in_progress" || progress.Status == "pending" {
 			incomplete = append(incomplete, progress)
 		}
 	}

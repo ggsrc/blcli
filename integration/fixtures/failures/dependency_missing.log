@@ -1,0 +1,2 @@
+blcli apply kubernetes failed:
+exec: "kubectl": executable file not found in $PATH

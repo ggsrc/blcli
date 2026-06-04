@@ -1,0 +1,17 @@
+fixtures:
+  - file: resource_already_exists.log
+    expected_category: resource_already_exists
+  - file: state_lock_conflict.log
+    expected_category: state_lock_conflict
+  - file: credential_invalid.log
+    expected_category: credential_invalid
+  - file: permission_insufficient.log
+    expected_category: permission_insufficient
+  - file: dependency_missing.log
+    expected_category: dependency_missing
+  - file: network_problem.log
+    expected_category: network_problem
+  - file: argocd_ssh_auth.log
+    expected_category: argocd_ssh_auth
+  - file: quota_exceeded.log
+    expected_category: quota_exceeded

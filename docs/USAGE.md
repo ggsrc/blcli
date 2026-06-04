@@ -10,6 +10,7 @@ For Chinese documentation, see [USAGE_zh.md](./USAGE_zh.md).
 - [Configuration Guide](#configuration-guide)
 - [Template Repository Guide](#template-repository-guide)
 - [Common Workflows](#common-workflows)
+- [Agent Workflows](#agent-workflows)
 - [Troubleshooting](#troubleshooting)
 
 ## Quick Start
@@ -73,6 +74,43 @@ blcli init terraform -r /path/to/bl-template -a args.yaml
 ```
 
 ## Command Reference
+
+### `blcli contract`
+
+Print the v2 AI-agent tool contract.
+
+```bash
+blcli contract --format json
+blcli contract "apply terraform" --format yaml
+```
+
+Use this when an automation system needs stable command inputs, outputs, JSON schemas, exit codes, examples, compatibility policy, and guidance.
+
+### `blcli diagnose`
+
+Classify a failed command output and suggest repair steps.
+
+```bash
+blcli diagnose --message "Error 409: already exists" --format json
+blcli diagnose --file execution_stage5.log
+```
+
+Use JSON output for agents. The result includes `category`, `confidence`, `matched_keywords`, `next_steps`, and `repair_commands`.
+Known failures also print a concise diagnosis to stderr when normal commands fail.
+Offline failure samples are available under `integration/fixtures/failures/` for safe replay.
+Agent replay playbooks are available under `integration/fixtures/agent-replay/`.
+
+### `blcli runs`
+
+List and inspect persisted run records from `~/.blcli/progress`.
+
+```bash
+blcli runs list --format json
+blcli runs list --status failed
+blcli runs show op-20260529-103000-app --format yaml
+```
+
+Use this to look up run ids, inspect step status, and retrieve stored error messages. Step records include timestamps, duration, status, command/action, output excerpt, error location, and error message when available.
 
 ### `blcli init-args`
 
@@ -561,6 +599,35 @@ blcli apply init-repos -o myorg -d ./workspace/output
 # Requires authenticated GitHub CLI: gh auth login
 ```
 
+## Agent Workflows
+
+### Inspect the tool contract
+
+```bash
+blcli contract --format json
+blcli contract "apply terraform" --format json
+blcli contract "runs list" --format json
+```
+
+Agents should read the contract before planning command calls and validate arguments against `input_schema` when possible. Prefer commands with `--dry-run` and `--format json` when available.
+
+### Diagnose a failed run
+
+```bash
+# Capture the failed command output first
+blcli apply terraform -d ./workspace/output/terraform --project prd > execution_stage5.log 2>&1
+
+# Classify and repair
+blcli diagnose --file execution_stage5.log --format json
+
+# Inspect stored run details
+blcli runs list --status failed --format json
+blcli runs show <operation-id> --format json
+```
+
+Use the returned `repair_commands` as candidates. Confirm destructive or production-impacting commands with a human before execution.
+When inspecting `runs show`, steps from `apply all` include the actual Terraform, Kubernetes, and GitOps subprocess command plus the captured output excerpt.
+
 ## Troubleshooting
 
 ### Issue: Template not found
@@ -623,4 +690,3 @@ blcli apply init-repos -o myorg -d ./workspace/output
 4. **Component filtering**: Only list components you need in `args.yaml` to keep generated code minimal
 5. **Regular updates**: Use `--force-update` periodically to get latest templates
 6. **Review generated files**: Always review generated files before applying to production
-

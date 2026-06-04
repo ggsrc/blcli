@@ -21,6 +21,9 @@
 | **status** | ✅ | terraform / kubernetes / gitops 状态检查（ExecuteStatus） |
 | **rollback** | ✅ | 独立 `blcli rollback`，按 config 的 Rollback 配置执行，支持 --dry-run |
 | **explain** | ✅ | 解释模板组件与参数 |
+| **contract** | ✅ | 输出 v2 AI Agent 工具契约，支持 json/yaml/table、命令过滤、input/output schema 与兼容策略 |
+| **diagnose** | ✅ | 对失败信息分类并输出 next steps / repair commands，支持 json/yaml/table |
+| **runs** | ✅ | 查询 `~/.blcli/progress` 中的运行记录，支持 list/show 与 json/yaml/table |
 | **version** | ✅ | 版本与构建时间 |
 
 ### 支撑能力
@@ -32,8 +35,13 @@
 | **执行计划输出** | ✅ | ExecutionPlan/PlanItem，各 apply 前 PrintExecutionPlan |
 | **--dry-run** | ✅ | apply terraform/kubernetes/gitops 及 apply all 的对应标志 |
 | **进度显示与持久化** | ✅ | ProgressTracker，init/apply all 使用，持久化到 ~/.blcli/progress/ |
+| **机器可读 step log** | ✅ | Step 记录已包含 started/duration/status/command/output_excerpt/error_location；`apply all` 的 Terraform/Kubernetes/GitOps 步骤已记录实际子命令与输出摘要 |
+| **run id 查询** | ✅ | `blcli runs list/show` 可按 operation_id 查询持久化 progress |
 | **模板加载** | ✅ | GitHub/本地、缓存、ForceUpdate、私有仓库 token |
 | **参数系统** | ✅ | 多 args 合并、YAML/TOML、workspace 等 |
+| **失败分类与修复建议** | ✅ | `pkg/agent` 规则库 + `blcli diagnose` 机器可读输出；普通命令失败时自动输出已知诊断 |
+| **Agent 工具契约** | ✅ | `blcli contract` 输出稳定 schema、命令调用约定与版本化兼容策略 |
+| **失败注入场景** | ✅ | `integration/fixtures/failures` 提供可离线复跑的失败日志样本，`integration/fixtures/agent-replay` 提供 Agent 复盘 playbook，单元测试校验诊断分类 |
 
 ---
 
@@ -59,9 +67,9 @@
 | 项 | 状态 | 说明 |
 |----|------|------|
 | 失败自动重试 | 不要求 | 产品不添加重试机制 |
-| 错误提示完善 | 待办 | 需完善错误提示（清晰、可操作） |
+| 错误提示完善 | ⚠️ | 已提供 `blcli diagnose` 离线诊断，并在统一错误出口自动输出已知诊断；部分内部 warning 尚未结构化 |
 | 部分失败时的回滚 | ⚠️ | 有 rollback 命令，非“apply 失败自动触发” |
-| 操作历史 / 审计 | ❌ | 无独立操作历史或审计日志 |
+| 操作历史 / 审计 | ⚠️ | `blcli runs` 可查询 progress 运行记录；独立审计日志仍未实现 |
 
 ### 2.4 Init 增强
 

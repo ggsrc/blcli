@@ -208,10 +208,14 @@ func ExecuteApplyTerraform(opts ApplyTerraformOptions) error {
 			fmt.Printf("\n📁 Applying init directory: %s\n", initSubDir)
 			fmt.Printf("   Directory: %s\n", initSubDirPath)
 
-			if err := applyTerraformDirectory(ctx, initSubDirPath, opts.AutoApprove, opts.SkipBackend, emulator); err != nil {
+			stepName := "init/" + strings.TrimPrefix(initSubDir, "init/")
+			stepLogger := startTerraformApplyStep(opts.ProgressTracker, stepName, initSubDirPath)
+			if err := applyTerraformDirectoryWithProgress(ctx, initSubDirPath, opts.AutoApprove, opts.SkipBackend, emulator, stepLogger); err != nil {
+				stepLogger.fail(err, initSubDirPath)
 				fmt.Printf("❌ Apply failed for init directory %s: %v\n", initSubDir, err)
 				failedDirs = append(failedDirs, "init/"+strings.TrimPrefix(initSubDir, "init/"))
 			} else {
+				stepLogger.complete()
 				fmt.Printf("✅ Apply succeeded for init directory: %s\n", initSubDir)
 			}
 		}
@@ -245,10 +249,13 @@ func ExecuteApplyTerraform(opts ApplyTerraformOptions) error {
 			}
 			fmt.Printf("   Directory: %s\n", projectDir)
 
-			if err := applyTerraformDirectory(ctx, projectDir, opts.AutoApprove, opts.SkipBackend, emulator); err != nil {
+			stepLogger := startTerraformApplyStep(opts.ProgressTracker, planItem.Name, projectDir)
+			if err := applyTerraformDirectoryWithProgress(ctx, projectDir, opts.AutoApprove, opts.SkipBackend, emulator, stepLogger); err != nil {
+				stepLogger.fail(err, projectDir)
 				fmt.Printf("❌ Apply failed for project %s: %v\n", projectName, err)
 				failedDirs = append(failedDirs, fmt.Sprintf("gcp/%s", projectName))
 			} else {
+				stepLogger.complete()
 				fmt.Printf("✅ Apply succeeded for project: %s\n", projectName)
 			}
 		}
@@ -277,10 +284,14 @@ func ExecuteApplyTerraform(opts ApplyTerraformOptions) error {
 					continue
 				}
 				fmt.Printf("\n📁 Applying terraform project (post-promote): %s\n", projectName)
-				if err := applyTerraformDirectory(ctx, projectDir, opts.AutoApprove, opts.SkipBackend, emulator); err != nil {
+				stepName := fmt.Sprintf("gcp/%s (post-promote)", projectName)
+				stepLogger := startTerraformApplyStep(opts.ProgressTracker, stepName, projectDir)
+				if err := applyTerraformDirectoryWithProgress(ctx, projectDir, opts.AutoApprove, opts.SkipBackend, emulator, stepLogger); err != nil {
+					stepLogger.fail(err, projectDir)
 					fmt.Printf("❌ Apply failed for project %s (post-promote): %v\n", projectName, err)
 					failedDirs = append(failedDirs, fmt.Sprintf("gcp/%s (post-promote)", projectName))
 				} else {
+					stepLogger.complete()
 					fmt.Printf("✅ Apply succeeded for project %s (post-promote)\n", projectName)
 				}
 			}
@@ -301,10 +312,14 @@ func ExecuteApplyTerraform(opts ApplyTerraformOptions) error {
 						continue
 					}
 					fmt.Printf("\n📁 Applying terraform project (layer %d, post-promote): %s\n", layer, projectName)
-					if err := applyTerraformDirectory(ctx, projectDir, opts.AutoApprove, opts.SkipBackend, emulator); err != nil {
+					stepName := fmt.Sprintf("gcp/%s (layer %d post-promote)", projectName, layer)
+					stepLogger := startTerraformApplyStep(opts.ProgressTracker, stepName, projectDir)
+					if err := applyTerraformDirectoryWithProgress(ctx, projectDir, opts.AutoApprove, opts.SkipBackend, emulator, stepLogger); err != nil {
+						stepLogger.fail(err, projectDir)
 						fmt.Printf("❌ Apply failed for project %s (layer %d): %v\n", projectName, layer, err)
 						failedDirs = append(failedDirs, fmt.Sprintf("gcp/%s (layer %d)", projectName, layer))
 					} else {
+						stepLogger.complete()
 						fmt.Printf("✅ Apply succeeded for project %s (layer %d)\n", projectName, layer)
 					}
 				}
@@ -480,10 +495,14 @@ func ExecuteApplyInit(opts ApplyTerraformOptions) error {
 		}
 		fmt.Printf("\n📁 Applying init directory: %s\n", rel)
 		fmt.Printf("   Directory: %s\n", initSubDirPath)
-		if err := applyTerraformDirectory(ctx, initSubDirPath, opts.AutoApprove, opts.SkipBackend, emulator); err != nil {
+		stepName := "init/" + strings.TrimPrefix(rel, "init/")
+		stepLogger := startTerraformApplyStep(opts.ProgressTracker, stepName, initSubDirPath)
+		if err := applyTerraformDirectoryWithProgress(ctx, initSubDirPath, opts.AutoApprove, opts.SkipBackend, emulator, stepLogger); err != nil {
+			stepLogger.fail(err, initSubDirPath)
 			fmt.Printf("❌ Apply failed for init directory %s: %v\n", rel, err)
 			failedDirs = append(failedDirs, rel)
 		} else {
+			stepLogger.complete()
 			fmt.Printf("✅ Apply succeeded for init directory: %s\n", rel)
 			// Wait before next directory to allow GCP APIs/resources to propagate
 			if opts.InitDelay > 0 && i < len(initDirsOrdered)-1 {
@@ -501,8 +520,16 @@ func ExecuteApplyInit(opts ApplyTerraformOptions) error {
 	return nil
 }
 
+func startTerraformApplyStep(progressTracker *ProgressTracker, stepName, location string) progressStepLogger {
+	return startProgressStep(progressTracker, "terraform", stepName, "terraform apply directory", location)
+}
+
 // applyTerraformDirectory applies a terraform directory by running init, plan, and apply
 func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove bool, skipBackend bool, emulator *GCSEmulator) error {
+	return applyTerraformDirectoryWithProgress(ctx, projectDir, autoApprove, skipBackend, emulator, progressStepLogger{})
+}
+
+func applyTerraformDirectoryWithProgress(ctx context.Context, projectDir string, autoApprove bool, skipBackend bool, emulator *GCSEmulator, stepLogger progressStepLogger) error {
 	// Resolve projectDir to absolute path before chdir so filepath.Join stays valid
 	absProjectDir, err := filepath.Abs(projectDir)
 	if err != nil {
@@ -534,14 +561,18 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 			fmt.Println("   [1/4] Running: terraform init")
 		}
 	}
-	if err := runTerraformCommand(ctx, initArgs, emulator); err != nil {
+	initResult, err := runTerraformCommandResult(ctx, initArgs, emulator, terraformCommandCaptureAndStream)
+	stepLogger.recordTerraform(initResult)
+	if err != nil {
 		return fmt.Errorf("terraform init failed: %w", err)
 	}
 	fmt.Println("   ✓ terraform init succeeded")
 
 	// Step 2: terraform validate
 	fmt.Println("   [2/4] Running: terraform validate")
-	if err := runTerraformCommand(ctx, []string{"validate"}, emulator); err != nil {
+	validateResult, err := runTerraformCommandResult(ctx, []string{"validate"}, emulator, terraformCommandCaptureAndStream)
+	stepLogger.recordTerraform(validateResult)
+	if err != nil {
 		return fmt.Errorf("terraform validate failed: %w", err)
 	}
 	fmt.Println("   ✓ terraform validate succeeded")
@@ -549,18 +580,19 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 	// Step 3: terraform plan
 	fmt.Println("   [3/4] Running: terraform plan")
 	planArgs := []string{"plan", "-input=false", "-out=tfplan"}
-	planOutput, err := runTerraformCommandWithOutput(ctx, planArgs, emulator)
+	planResult, err := runTerraformCommandResult(ctx, planArgs, emulator, terraformCommandCapture)
+	stepLogger.recordTerraform(planResult)
 	if err != nil {
 		return fmt.Errorf("terraform plan failed: %w", err)
 	}
 	fmt.Println("   ✓ terraform plan succeeded")
 
 	// Check if plan has changes
-	if len(planOutput) > 0 {
-		if bytes.Contains(planOutput, []byte("No changes")) {
+	if len(planResult.Output) > 0 {
+		if bytes.Contains(planResult.Output, []byte("No changes")) {
 			fmt.Println("   ℹ️  No changes detected, skipping apply")
 			// Clean up plan file
-			planFile := filepath.Join(projectDir, "tfplan")
+			planFile := filepath.Join(absProjectDir, "tfplan")
 			if _, err := os.Stat(planFile); err == nil {
 				os.Remove(planFile)
 			}
@@ -581,6 +613,11 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 	}
 
 	applyOutput, err := runTerraformCommandWithOutput(ctx, applyArgs, emulator)
+	stepLogger.recordTerraform(TerraformCommandResult{
+		Command: terraformCommandString(applyArgs),
+		Args:    append([]string(nil), applyArgs...),
+		Output:  applyOutput,
+	})
 	if err != nil {
 		// E2E idempotency: when local state is missing but resource already exists (common for init/0-terraform-statestore),
 		// terraform apply may fail with Error 409. Auto-import known resources and retry once.
@@ -589,7 +626,10 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 		if m := tfAlreadyExistsProjectRe.FindSubmatch(applyOutput); len(m) == 2 {
 			projectID := string(m[1])
 			fmt.Printf("   ⚠️  Project already exists: %s. Importing into state...\n", projectID)
-			if importErr := runTerraformCommand(ctx, []string{"import", "-input=false", "google_project.main", projectID}, emulator); importErr != nil {
+			importArgs := []string{"import", "-input=false", "google_project.main", projectID}
+			importResult, importErr := runTerraformCommandResult(ctx, importArgs, emulator, terraformCommandCaptureAndStream)
+			stepLogger.recordTerraform(importResult)
+			if importErr != nil {
 				return fmt.Errorf("terraform apply failed: %w (auto-import project failed: %v)", err, importErr)
 			}
 			didImport = true
@@ -601,7 +641,10 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 				return fmt.Errorf("terraform apply failed: %w (bucket conflict detected but failed to extract bucket name: %v)", err, nameErr)
 			}
 			fmt.Printf("   ⚠️  Bucket already owned: %s. Importing into state...\n", bucketName)
-			if importErr := runTerraformCommand(ctx, []string{"import", "-input=false", "google_storage_bucket.terraform-statestore", bucketName}, emulator); importErr != nil {
+			importArgs := []string{"import", "-input=false", "google_storage_bucket.terraform-statestore", bucketName}
+			importResult, importErr := runTerraformCommandResult(ctx, importArgs, emulator, terraformCommandCaptureAndStream)
+			stepLogger.recordTerraform(importResult)
+			if importErr != nil {
 				return fmt.Errorf("terraform apply failed: %w (auto-import bucket failed: %v)", err, importErr)
 			}
 			didImport = true
@@ -611,11 +654,15 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 			// Import changes the state, so the previously saved plan (tfplan) is stale.
 			// Re-run plan to generate a fresh tfplan, then apply again.
 			fmt.Printf("   🔁 Re-planning after auto-import...\n")
-			if _, planErr := runTerraformCommandWithOutput(ctx, planArgs, emulator); planErr != nil {
+			replanResult, planErr := runTerraformCommandResult(ctx, planArgs, emulator, terraformCommandCapture)
+			stepLogger.recordTerraform(replanResult)
+			if planErr != nil {
 				return fmt.Errorf("terraform apply failed: %w (auto-import succeeded but re-plan failed: %v)", err, planErr)
 			}
 			fmt.Printf("   🔁 Retrying terraform apply after auto-import...\n")
-			if _, retryErr := runTerraformCommandWithOutput(ctx, applyArgs, emulator); retryErr != nil {
+			retryResult, retryErr := runTerraformCommandResult(ctx, applyArgs, emulator, terraformCommandCapture)
+			stepLogger.recordTerraform(retryResult)
+			if retryErr != nil {
 				return fmt.Errorf("terraform apply failed after auto-import (and re-plan): %w", retryErr)
 			}
 			fmt.Println("   ✓ terraform apply succeeded (after auto-import + re-plan)")
@@ -628,7 +675,7 @@ func applyTerraformDirectory(ctx context.Context, projectDir string, autoApprove
 	}
 
 	// Clean up plan file
-	planFile := filepath.Join(projectDir, "tfplan")
+	planFile := filepath.Join(absProjectDir, "tfplan")
 	if _, err := os.Stat(planFile); err == nil {
 		os.Remove(planFile)
 	}

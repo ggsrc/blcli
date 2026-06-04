@@ -51,6 +51,9 @@ args.yaml  +  bl-template  →  blcli  →  GCP projects + GKE clusters + ArgoCD
   - [blcli apply init-repos](#blcli-apply-init-repos)
   - [blcli destroy](#blcli-destroy)
   - [blcli check](#blcli-check)
+  - [blcli contract](#blcli-contract)
+  - [blcli diagnose](#blcli-diagnose)
+  - [blcli runs](#blcli-runs)
 - [Configuration Reference](#configuration-reference)
   - [args.yaml structure](#argsyaml-structure)
   - [Inheritance model](#inheritance-model)
@@ -739,6 +742,52 @@ Verify all required external tools are installed:
 ```bash
 blcli check
 ```
+
+---
+
+### `blcli contract`
+
+Print the v2 AI-agent tool contract. Use JSON for automation.
+
+```bash
+blcli contract --format json
+blcli contract "apply terraform" --format yaml
+```
+
+The contract includes command inputs, outputs, JSON schemas, exit codes, examples, compatibility policy, and agent guidance.
+
+---
+
+### `blcli diagnose`
+
+Classify a failed command output and return repair guidance.
+
+```bash
+blcli diagnose --message "Error 409: already exists" --format json
+blcli diagnose --file execution_stage5.log
+```
+
+The diagnosis includes a stable category, confidence, matched keywords, likely cause, next steps, and repair commands.
+
+When a normal `blcli` command fails with a known pattern, blcli also appends this diagnosis to stderr. Capture the failed command output and pass it to `blcli diagnose --file <log> --format json` for machine-readable triage.
+Offline failure samples are available under `integration/fixtures/failures/` for safe replay without running Terraform, kubectl, gcloud, or gh.
+Agent replay playbooks are available under `integration/fixtures/agent-replay/` for contract, diagnose, and runs workflows.
+
+---
+
+### `blcli runs`
+
+List and inspect persisted run records from `~/.blcli/progress`.
+
+```bash
+blcli runs list --format json
+blcli runs list --status failed
+blcli runs show op-20260529-103000-app --format yaml
+```
+
+Use this to look up run ids, inspect step status, and retrieve stored error messages for later diagnosis or replay planning.
+Step records include timestamps, duration, status, command/action, output excerpt, error location, and error message when available.
+For `apply all`, Terraform, Kubernetes, and GitOps steps record the actual subprocess command and captured output excerpt.
 
 ---
 

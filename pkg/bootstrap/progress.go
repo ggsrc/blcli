@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"blcli/pkg/state"
@@ -13,6 +14,7 @@ import (
 type ProgressTracker struct {
 	progress *state.Progress
 	quiet    bool // If true, don't print progress updates
+	mu       sync.Mutex
 }
 
 // NewProgressTracker creates a new progress tracker
@@ -58,6 +60,9 @@ func LoadProgressTracker(operationID string, quiet bool) (*ProgressTracker, erro
 
 // StartOperation marks the operation as started
 func (pt *ProgressTracker) StartOperation() error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	pt.progress.Status = "in_progress"
 	pt.progress.UpdatedAt = time.Now()
 	return pt.save()
@@ -65,6 +70,9 @@ func (pt *ProgressTracker) StartOperation() error {
 
 // CompleteOperation marks the operation as completed
 func (pt *ProgressTracker) CompleteOperation() error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	pt.progress.Status = "completed"
 	pt.progress.UpdatedAt = time.Now()
 	pt.progress.CompletedSteps = pt.progress.TotalSteps
@@ -74,6 +82,9 @@ func (pt *ProgressTracker) CompleteOperation() error {
 
 // FailOperation marks the operation as failed
 func (pt *ProgressTracker) FailOperation(errorMsg string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	pt.progress.Status = "failed"
 	pt.progress.UpdatedAt = time.Now()
 	return pt.save()
@@ -81,6 +92,9 @@ func (pt *ProgressTracker) FailOperation(errorMsg string) error {
 
 // StartModule starts tracking a module
 func (pt *ProgressTracker) StartModule(moduleName string, totalSteps int) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	now := time.Now()
 	moduleProgress := state.ModuleProgress{
 		Name:           moduleName,
@@ -104,6 +118,9 @@ func (pt *ProgressTracker) StartModule(moduleName string, totalSteps int) error 
 
 // CompleteModule marks a module as completed
 func (pt *ProgressTracker) CompleteModule(moduleName string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	module, exists := pt.progress.Modules[moduleName]
 	if !exists {
 		return fmt.Errorf("module not found: %s", moduleName)
@@ -144,6 +161,9 @@ func (pt *ProgressTracker) CompleteModule(moduleName string) error {
 
 // FailModule marks a module as failed
 func (pt *ProgressTracker) FailModule(moduleName, errorMsg string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	module, exists := pt.progress.Modules[moduleName]
 	if !exists {
 		return fmt.Errorf("module not found: %s", moduleName)
@@ -164,6 +184,9 @@ func (pt *ProgressTracker) FailModule(moduleName, errorMsg string) error {
 
 // SkipModule marks a module as skipped
 func (pt *ProgressTracker) SkipModule(moduleName string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	module, exists := pt.progress.Modules[moduleName]
 	if !exists {
 		module = state.ModuleProgress{
@@ -187,6 +210,14 @@ func (pt *ProgressTracker) SkipModule(moduleName string) error {
 
 // StartStep starts tracking a step within a module
 func (pt *ProgressTracker) StartStep(moduleName, stepName string) error {
+	return pt.StartStepWithCommand(moduleName, stepName, "")
+}
+
+// StartStepWithCommand starts tracking a step and records the subcommand or action it runs.
+func (pt *ProgressTracker) StartStepWithCommand(moduleName, stepName, command string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	module, exists := pt.progress.Modules[moduleName]
 	if !exists {
 		// Create module if it doesn't exist
@@ -201,6 +232,7 @@ func (pt *ProgressTracker) StartStep(moduleName, stepName string) error {
 	step := state.StepProgress{
 		Name:      stepName,
 		Status:    "in_progress",
+		Command:   command,
 		StartedAt: &now,
 	}
 
@@ -220,16 +252,15 @@ func (pt *ProgressTracker) StartStep(moduleName, stepName string) error {
 		// Add new step
 		module.Steps = append(module.Steps, step)
 		module.TotalSteps = len(module.Steps) // Update total steps to match actual steps
-		// Recalculate total steps from all modules
-		totalSteps := 0
-		for _, m := range pt.progress.Modules {
-			totalSteps += len(m.Steps) // Use actual step count
-		}
-		pt.progress.TotalSteps = totalSteps
 	}
 
 	module.Status = "in_progress"
 	pt.progress.Modules[moduleName] = module
+	totalSteps := 0
+	for _, m := range pt.progress.Modules {
+		totalSteps += len(m.Steps)
+	}
+	pt.progress.TotalSteps = totalSteps
 	pt.progress.CurrentStep = pt.progress.CompletedSteps + 1
 	pt.progress.UpdatedAt = time.Now()
 
@@ -240,24 +271,50 @@ func (pt *ProgressTracker) StartStep(moduleName, stepName string) error {
 	return pt.save()
 }
 
+// RecordStepOutput stores a short, machine-readable excerpt of a step's key output.
+func (pt *ProgressTracker) RecordStepOutput(moduleName, stepName, output string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
+	module, stepIndex, err := pt.findStep(moduleName, stepName)
+	if err != nil {
+		return err
+	}
+
+	step := module.Steps[stepIndex]
+	step.OutputExcerpt = truncateStepOutput(output)
+	module.Steps[stepIndex] = step
+	pt.progress.Modules[moduleName] = module
+	pt.progress.UpdatedAt = time.Now()
+	return pt.save()
+}
+
+// RecordStepErrorLocation stores where an error occurred, such as a file path, component, or command phase.
+func (pt *ProgressTracker) RecordStepErrorLocation(moduleName, stepName, errorLocation string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
+	module, stepIndex, err := pt.findStep(moduleName, stepName)
+	if err != nil {
+		return err
+	}
+
+	step := module.Steps[stepIndex]
+	step.ErrorLocation = errorLocation
+	module.Steps[stepIndex] = step
+	pt.progress.Modules[moduleName] = module
+	pt.progress.UpdatedAt = time.Now()
+	return pt.save()
+}
+
 // CompleteStep marks a step as completed
 func (pt *ProgressTracker) CompleteStep(moduleName, stepName string) error {
-	module, exists := pt.progress.Modules[moduleName]
-	if !exists {
-		return fmt.Errorf("module not found: %s", moduleName)
-	}
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 
-	// Find step
-	stepIndex := -1
-	for i, s := range module.Steps {
-		if s.Name == stepName {
-			stepIndex = i
-			break
-		}
-	}
-
-	if stepIndex < 0 {
-		return fmt.Errorf("step not found: %s in module %s", stepName, moduleName)
+	module, stepIndex, err := pt.findStep(moduleName, stepName)
+	if err != nil {
+		return err
 	}
 
 	step := module.Steps[stepIndex]
@@ -310,22 +367,17 @@ func (pt *ProgressTracker) CompleteStep(moduleName, stepName string) error {
 
 // FailStep marks a step as failed
 func (pt *ProgressTracker) FailStep(moduleName, stepName, errorMsg string) error {
-	module, exists := pt.progress.Modules[moduleName]
-	if !exists {
-		return fmt.Errorf("module not found: %s", moduleName)
-	}
+	return pt.FailStepWithContext(moduleName, stepName, errorMsg, "")
+}
 
-	// Find step
-	stepIndex := -1
-	for i, s := range module.Steps {
-		if s.Name == stepName {
-			stepIndex = i
-			break
-		}
-	}
+// FailStepWithContext marks a step as failed and records where the error occurred.
+func (pt *ProgressTracker) FailStepWithContext(moduleName, stepName, errorMsg, errorLocation string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
 
-	if stepIndex < 0 {
-		return fmt.Errorf("step not found: %s in module %s", stepName, moduleName)
+	module, stepIndex, err := pt.findStep(moduleName, stepName)
+	if err != nil {
+		return err
 	}
 
 	step := module.Steps[stepIndex]
@@ -333,6 +385,7 @@ func (pt *ProgressTracker) FailStep(moduleName, stepName, errorMsg string) error
 	step.Status = "failed"
 	step.CompletedAt = &now
 	step.ErrorMessage = errorMsg
+	step.ErrorLocation = errorLocation
 
 	if step.StartedAt != nil {
 		duration := now.Sub(*step.StartedAt)
@@ -352,8 +405,34 @@ func (pt *ProgressTracker) FailStep(moduleName, stepName, errorMsg string) error
 	return pt.save()
 }
 
+func (pt *ProgressTracker) findStep(moduleName, stepName string) (state.ModuleProgress, int, error) {
+	module, exists := pt.progress.Modules[moduleName]
+	if !exists {
+		return state.ModuleProgress{}, -1, fmt.Errorf("module not found: %s", moduleName)
+	}
+
+	for i, step := range module.Steps {
+		if step.Name == stepName {
+			return module, i, nil
+		}
+	}
+	return state.ModuleProgress{}, -1, fmt.Errorf("step not found: %s in module %s", stepName, moduleName)
+}
+
+func truncateStepOutput(output string) string {
+	const maxOutputExcerpt = 4000
+	output = strings.TrimSpace(output)
+	if len(output) <= maxOutputExcerpt {
+		return output
+	}
+	return output[:maxOutputExcerpt] + "...(truncated)"
+}
+
 // SkipStep marks a step as skipped
 func (pt *ProgressTracker) SkipStep(moduleName, stepName string) error {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	module, exists := pt.progress.Modules[moduleName]
 	if !exists {
 		return fmt.Errorf("module not found: %s", moduleName)
@@ -395,6 +474,9 @@ func (pt *ProgressTracker) SkipStep(moduleName, stepName string) error {
 
 // GetProgress returns the current progress
 func (pt *ProgressTracker) GetProgress() *state.Progress {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	return pt.progress
 }
 
@@ -463,6 +545,9 @@ func (pt *ProgressTracker) updateDisplay() {
 
 // PrintSummary prints a summary of the progress
 func (pt *ProgressTracker) PrintSummary() {
+	pt.mu.Lock()
+	defer pt.mu.Unlock()
+
 	fmt.Println() // New line after progress bar
 	typeStr := pt.progress.Type
 	if len(typeStr) > 0 {

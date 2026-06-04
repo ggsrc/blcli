@@ -17,6 +17,7 @@ type ApplyTerraformOptions struct {
 	TemplateRepo    string        // Optional: template repository URL or local path for dependency resolution
 	DryRun          bool          // If true, only show execution plan without executing
 	InitDelay       time.Duration // Delay after each init directory (apply init only). 0 = no delay.
+	ProgressTracker *ProgressTracker
 }
 
 // ApplyKubernetesOptions holds options for apply kubernetes command
@@ -30,23 +31,25 @@ type ApplyKubernetesOptions struct {
 	DryRun                  bool
 	Wait                    bool
 	ComponentWaitAfterApply time.Duration // Wait duration after each component apply before next (e.g. 30s). 0 = no wait.
+	ProgressTracker         *ProgressTracker
 }
 
 // ApplyGitOpsOptions holds options for apply gitops command
 type ApplyGitOpsOptions struct {
-	GitOpsDir    string
-	Project      string // If set, only apply ArgoCD Applications under this project (e.g. stg)
-	ArgsPaths    []string
-	Kubeconfig   string
-	Context      string
-	CreateRepo   bool
-	RepoURL      string
-	Branch       string
-	ArgoCDServer string
-	ArgoCDToken  string
-	Timeout      time.Duration
-	SkipSync     bool
-	DryRun       bool // If true, only show execution plan without executing
+	GitOpsDir       string
+	Project         string // If set, only apply ArgoCD Applications under this project (e.g. stg)
+	ArgsPaths       []string
+	Kubeconfig      string
+	Context         string
+	CreateRepo      bool
+	RepoURL         string
+	Branch          string
+	ArgoCDServer    string
+	ArgoCDToken     string
+	Timeout         time.Duration
+	SkipSync        bool
+	DryRun          bool // If true, only show execution plan without executing
+	ProgressTracker *ProgressTracker
 }
 
 // ApplyAllOptions holds options for apply all command
