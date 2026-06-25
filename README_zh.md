@@ -2,9 +2,11 @@
 
 # blcli
 
-**一份配置，走完 GCP 平台全链路** — Terraform、Kubernetes、GitOps 统一在一个 CLI 里。
+**一份配置，走完云平台全链路。**
 
-*用单个 `args.yaml` 生成、部署、观测和销毁多环境云基础设施。*
+*One config. Full cloud platform lifecycle.*
+
+用一份 `args.yaml` 和自描述模板仓，串联 Terraform、Kubernetes 与 GitOps。**当前深度支持 GCP**，架构面向多云。
 
 [![GitHub stars](https://img.shields.io/github/stars/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/releases)

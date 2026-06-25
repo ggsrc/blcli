@@ -2,9 +2,11 @@
 
 # blcli
 
-**Bootstrap GCP platforms from one config file** — Terraform, Kubernetes, and GitOps in a single CLI.
+**One config. Full cloud platform lifecycle.**
 
-*Generate, apply, monitor, and tear down multi-environment cloud infrastructure from a single `args.yaml`.*
+*一份配置，走完云平台全链路。*
+
+Terraform, Kubernetes, and GitOps from one `args.yaml` and a self-describing template repo. **GCP-first today**; multi-cloud by design.
 
 [![GitHub stars](https://img.shields.io/github/stars/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/releases)
