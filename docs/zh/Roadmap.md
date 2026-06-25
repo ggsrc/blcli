@@ -2,19 +2,29 @@
 
 ## 项目愿景
 
-`blcli` 旨在成为企业级基础设施即代码（IaC）的一站式管理工具，通过统一的 CLI 接口简化多云基础设施的初始化、部署、监控和管理流程。
+`blcli` 旨在成为**云平台基础设施**的一站式 CLI：用一份 `args.yaml` 和自描述模板仓，串联 Terraform、Kubernetes 与 GitOps 的生成、部署、观测与回收。
 
-## 当前状态 (v0.x)
+**品牌 slogan：** 一份配置，走完云平台全链路。 / One config. Full cloud platform lifecycle.
 
-### 已实现功能
-- ✅ **init-config**: 生成默认配置文件
-- ✅ **init**: 初始化 Terraform、Kubernetes、GitOps 项目
-- ✅ **init-args**: 从模板仓库生成参数配置文件
-- ✅ **check**: 检查必需工具（terraform、kubectl）的安装状态
-- ✅ **destroy**: 销毁已初始化的项目
-- ✅ **模板系统**: 支持从 GitHub 仓库加载模板（支持私有仓库）
-- ✅ **参数管理**: 支持 TOML/YAML 格式，支持项目特定参数（projects.prd, projects.dev）
-- ✅ **状态管理**: 跟踪已初始化的项目状态
+**版本策略：**
+- **v1（GCP-first）**：Phase 1 核心闭环 + Resume + 失败指引；首个完整实现为 GCP。
+- **v1.5**：轻量向导、Agent 工具、CI 示例。
+- **v2**：workflow、环境抽象、第二云模板、monitor、插件。
+
+详见 `docs/zh/FEATURE_STATUS.md`、`docs/zh/V1.0_STATUS_ANALYSIS.md`。
+
+## 当前状态（v1 候选）
+
+### 已实现（Phase 1）
+- ✅ **init / init-args / apply / status / rollback / check / destroy / explain**
+- ✅ **apply**：terraform、kubernetes、gitops、all；依赖排序、执行计划、--dry-run、**三模块 `--project`**
+- ✅ **status**：`--format=table|json|yaml`
+- ✅ **进度持久化与 Resume**：`init`、`apply all` 可续跑未完成操作（`--no-resume` 跳过）
+- ✅ **失败修复指引**：常见错误输出 next steps
+- ✅ **模板系统**：GitHub/本地、缓存、单次单仓库、init 前 args 校验
+
+### v1 明确不做
+并行 init、自动 Git 提交、失败重试、多模板合并、模板版本锁、apply 失败自动 rollback、`blcli bootstrap` 会话（见 Phase 2）、多云实现（见 v2）。
 
 ## 短期路线图 (v1.0)
 
@@ -24,33 +34,35 @@
 - [x] **一键初始化所有 repo**（已实现 `blcli init`）
   - 不要求：并行初始化多个项目
   - [x] 智能依赖检测和顺序执行（Terraform/Kubernetes 按 config 依赖排序）
-  - [x] 初始化进度显示和错误恢复（ProgressTracker，持久化到 ~/.blcli/progress/）
+  - [x] 初始化进度显示（ProgressTracker，持久化到 ~/.blcli/progress/）
+  - [x] **中断续跑 Resume**（检测未完成 init，跳过已完成 module；`--no-resume`）
   - [x] 初始化后提交到 Git 仓库（手动调用 `blcli apply init-repos`，不计划自动）
 
-#### 1.2 新增 `install` 命令（已以 `apply` 命令实现）
-- [x] **一键安装所有组件**（`blcli apply terraform/kubernetes/gitops/all`）
+#### 1.2 部署命令（Roadmap 原 `install`，已实现为 `apply`）
+- [x] **一键部署所有组件**（`blcli apply terraform/kubernetes/gitops/all`）
   - [x] Terraform 模块部署（含依赖排序、执行计划、--dry-run）
   - [x] Kubernetes 资源部署（含依赖排序、执行计划、--dry-run）
   - [x] GitOps 配置同步（含执行计划、--dry-run）
   - 不要求：分批安装；回滚已实现为 `blcli rollback`
-  - [x] 按 project 执行：Terraform 已支持 `--project`；[ ] Kubernetes/GitOps 待支持 `--project`
+  - [x] **按 project 执行**：terraform、kubernetes、gitops 均已支持 `--project`
   - [x] 安装前依赖检查（按 config 依赖排序执行）
-  - [ ] 安装状态持久化（可选；当次进度已持久化）
+  - [x] **apply all 中断续跑**（按 module 跳过已完成项）
+  - [ ] 安装状态长期持久化（**v1 可选 / v2 环境快照**；当次 progress 已有）
 
-#### 1.3 新增 `status` 命令
+#### 1.3 `status` 命令
 - [x] **检查各组件安装情况**（已实现 `blcli status [terraform|kubernetes|gitops|all]`）
   - [x] Terraform 状态检查（`terraform show`）
   - [x] Kubernetes 资源状态（`kubectl get`）
   - [x] GitOps 同步状态
   - [x] 健康检查汇总报告
-  - [ ] 支持 JSON/YAML 输出格式（可按需扩展 --format）
+  - [x] **JSON/YAML 输出**（`--format=table|json|yaml`）
 
 #### 1.4 增强模板系统
 - 不要求：模板版本管理、多模板源合并
 - [x] **单次操作单仓库**：每次通过 `--template-repo` 指定一个仓库；不同命令/不同时机可用不同仓库
   - 不支持一次加载合并多个模板仓库（无此需求）
 
-### Phase 2: 用户体验优化
+### Phase 2: 用户体验优化（**不属于 v1 发布门槛**，见 v1.5）
 
 #### 2.1 交互式 CLI
 - [ ] **交互式配置向导**
@@ -72,24 +84,15 @@
   - [ ] 操作时间估算
 
 #### 2.2 错误处理
-- [ ] **智能错误恢复**
-  - 不要求：失败步骤自动重试
-  - [x] 部分失败时的回滚机制（独立 `blcli rollback`，按 config 执行）
-  - [ ] 完善错误提示（清晰、可操作）
-- [ ] **操作日志**
-  - 操作历史记录
-  - 日志文件管理
-  - 审计追踪
+- [x] **回滚机制**（独立 `blcli rollback`，按 config 执行；非 apply 失败自动触发）
+- [x] **失败修复指引（v1 粒度）**：常见错误输出 next steps（`PrintFailureHints`）
+- 不要求：失败步骤自动重试
+- [ ] **完整 diagnose / 审计子系统**（v1.5+ Agent 专项；非 v1 阻塞项）
+- [ ] **操作日志 / 审计追踪**（v3 平台化；v1 用 progress 文件）
 
-#### 2.3 配置管理增强
-- [ ] **配置验证**
-  - 配置文件语法检查
-  - 参数完整性验证
-  - 配置最佳实践建议
-- [ ] **配置模板库**
-  - 常用配置模板
-  - 行业最佳实践模板
-  - 配置模板市场
+#### 2.3 配置管理增强（v2 生态）
+- [x] **init 前参数校验**（`validator.Run` + args 自描述）
+- [ ] 配置最佳实践建议、配置模板库、模板市场
 
 ## 中期路线图 (v2.0)
 
@@ -227,29 +230,31 @@
 - [ ] 集成合作伙伴
 - [ ] 认证和培训计划
 
-## 优先级建议
+## 优先级建议（修订）
 
-### 高优先级（P0）
-1. **`install` 命令实现** - 核心功能，用户最需要的功能
-2. **`status` 命令实现** - 运维必需，状态可见性
-3. **错误处理和恢复** - 提升用户体验和可靠性
+### v1 发布（已完成或收尾）
+1. Phase 1 命令闭环 ✅
+2. Resume + 失败指引 ✅
+3. 文档与代码一致 ✅
 
-### 中优先级（P1）
-1. **交互式 CLI** - 降低使用门槛
-2. **工作流管理** - 提升自动化能力
-3. **多环境管理** - 企业级需求
+### v1.5
+1. 轻量 `init --wizard` / 配置预览
+2. Agent 工具（`contract`、`diagnose`）最小集
+3. 官方 GitHub Action 示例
 
-### 低优先级（P2）
-1. **Web UI** - 长期目标，需要架构设计
-2. **AI 功能** - 创新功能，需要技术积累
-3. **移动端** - 扩展功能，根据需求决定
+### v2（见中期路线图）
+1. `blcli workflow`
+2. 环境抽象 `--env`
+3. 第二云官方模板 + 引擎抽象
+4. `blcli monitor`、插件
 
 ## 里程碑
 
-- **v1.0** (Q1 2026): 核心功能完善（init/install/status）
-- **v2.0** (Q2 2026): 高级功能和工作流
-- **v3.0** (2026): C-S 架构和 Web UI
-- **v4.0** (2026): AI 和自动化
+- **v1.0** (2026): GCP-first 核心闭环（init/apply/status/rollback）+ Resume + 失败指引
+- **v1.5** (2026): 向导与 Agent/CI 增强
+- **v2.0** (2026): workflow、多环境、第二云、monitor
+- **v3.0** (2026+): C-S 架构和 Web UI
+- **v4.0** (2026+): AI 和自动化运维
 
 ## 反馈和贡献
 
@@ -260,4 +265,4 @@
 
 ---
 
-*最后更新：2026-02-26（Phase 2 新增「一站式 Bootstrap 交互会话」规划，详见 2.1；历史见 V1.0_STATUS_ANALYSIS.md、FEATURE_STATUS.md）*
+*最后更新：2026-06-25（修订 v1 范围、Resume、失败指引、文档与代码对齐）*

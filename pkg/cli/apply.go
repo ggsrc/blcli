@@ -52,6 +52,7 @@ var (
 	applyAllArgsPaths       []string
 	applyAllContinueOnError bool
 	applyAllSkipModules     []string
+	applyAllNoResume        bool
 )
 
 // NewApplyCommand creates the apply command with subcommands

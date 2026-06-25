@@ -32,6 +32,7 @@ type InitOptions struct {
 	ProfilePath  string // Path to save CPU profile (empty = no profiling)
 	OutputPath   string // Output directory path (overrides workspace in config if specified)
 	Quiet        bool   // If true, don't show progress updates
+	NoResume     bool   // If true, never prompt to resume an in-progress operation
 }
 
 // DestroyOptions holds options for destroy command
@@ -139,6 +140,7 @@ func ExecuteInit(opts InitOptions) error {
 		}
 		// Validate merged args against template param definitions (before writing any files)
 		if err := validator.Run(templateArgs, templateLoader); err != nil {
+			PrintFailureHints("init", err)
 			return fmt.Errorf("validation failed: %w", err)
 		}
 	}
@@ -160,27 +162,24 @@ func ExecuteInit(opts InitOptions) error {
 		modules = expandedModules
 	}
 
-	// Initialize progress tracker
-	operationID := GenerateOperationID("init")
-	progressTracker, err := NewProgressTracker(operationID, "init", opts.Quiet)
-	if err != nil {
-		fmt.Printf("Warning: failed to initialize progress tracker: %v\n", err)
+	// Initialize progress tracker (optional resume)
+	progressTracker, trackerErr := ResolveProgressTracker(progressResumeOptions{
+		OperationType: "init",
+		Quiet:         opts.Quiet,
+		NoResume:      opts.NoResume,
+	})
+	if trackerErr != nil {
+		fmt.Printf("Warning: failed to initialize progress tracker: %v\n", trackerErr)
 		progressTracker = nil
 	}
-
 	if progressTracker != nil {
-		if err := progressTracker.StartOperation(); err != nil {
-			fmt.Printf("Warning: failed to start progress tracking: %v\n", err)
-		}
 		defer func() {
-			if progressTracker != nil {
-				if err != nil {
-					progressTracker.FailOperation(fmt.Sprintf("%v", err))
-				} else {
-					progressTracker.CompleteOperation()
-				}
-				progressTracker.PrintSummary()
+			if err != nil {
+				_ = progressTracker.FailOperation(fmt.Sprintf("%v", err))
+			} else {
+				_ = progressTracker.CompleteOperation()
 			}
+			progressTracker.PrintSummary()
 		}()
 	}
 
@@ -188,9 +187,13 @@ func ExecuteInit(opts InitOptions) error {
 	for _, module := range modules {
 		moduleName := module
 
+		if ModuleAlreadyCompleted(progressTracker, moduleName) {
+			fmt.Printf("⏭️  Skipping %s init (already completed in resumed operation)\n", moduleName)
+			continue
+		}
+
 		// Start module tracking
 		if progressTracker != nil {
-			// Estimate total steps (will be updated as steps are added)
 			if err := progressTracker.StartModule(moduleName, 1); err != nil {
 				fmt.Printf("Warning: failed to track module %s: %v\n", moduleName, err)
 			}
@@ -210,6 +213,7 @@ func ExecuteInit(opts InitOptions) error {
 			})
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
+				PrintFailureHints("init "+moduleName, err)
 				continue
 			}
 		} else {
@@ -223,6 +227,7 @@ func ExecuteInit(opts InitOptions) error {
 			}
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
+				PrintFailureHints("init "+moduleName, err)
 				continue
 			}
 		}

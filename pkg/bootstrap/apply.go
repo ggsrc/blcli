@@ -80,6 +80,8 @@ type ApplyAllOptions struct {
 	GitOpsDryRun       bool
 	// Terraform dry-run (for apply all)
 	TerraformDryRun bool
+	// NoResume skips prompting to continue an in-progress operation
+	NoResume bool
 }
 
 // ExecuteApplyTerraform is implemented in apply_terraform.go

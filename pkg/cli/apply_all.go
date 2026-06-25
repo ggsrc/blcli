@@ -70,6 +70,7 @@ Examples:
 				ArgsPaths:       applyAllArgsPaths,
 				ContinueOnError: applyAllContinueOnError,
 				SkipModules:     applyAllSkipModules,
+				NoResume:        applyAllNoResume,
 				// Pass through terraform options
 				TerraformUseEmulator:     applyTerraformUseEmulator,
 				TerraformEmulatorPort:    applyTerraformEmulatorPort,
@@ -109,6 +110,8 @@ Examples:
 		"Continue executing remaining modules when one fails")
 	cmd.Flags().StringArrayVar(&applyAllSkipModules, "skip-modules", nil,
 		"Skip specified modules (e.g., --skip-modules=gitops)")
+	cmd.Flags().BoolVar(&applyAllNoResume, "no-resume", false,
+		"Do not prompt to resume an incomplete apply all operation")
 
 	// Inherit flags from subcommands
 	cmd.Flags().BoolVar(&applyTerraformUseEmulator, "use-emulator", false,
