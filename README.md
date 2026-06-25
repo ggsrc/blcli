@@ -2,28 +2,56 @@
 
 # blcli
 
-**Infrastructure-as-Code CLI for GCP · Kubernetes · GitOps**
+**One config. Full cloud platform lifecycle.**
 
-*Generate, apply, and destroy multi-environment cloud infrastructure from a single config file.*
+*一份配置，走完云平台全链路。*
 
+Terraform, Kubernetes, and GitOps from one `args.yaml` and a self-describing template repo. **GCP-first today**; multi-cloud by design.
+
+[![GitHub stars](https://img.shields.io/github/stars/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/stargazers)
+[![GitHub release](https://img.shields.io/github/v/release/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/releases)
+[![License](https://img.shields.io/github/license/ggsrc/blcli?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.21%2B-00ADD8?style=flat-square&logo=go)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)]()
 [![Template](https://img.shields.io/badge/template-bl--template-orange?style=flat-square)](https://github.com/ggsrc/bl-template)
 
+[Quick Start](#quick-start-5-minutes) · [Docs](docs/) · [中文说明](README_zh.md) · [bl-template-personal](https://github.com/ggsrc/bl-template-personal) (solo GCP)
+
 </div>
+
+<!-- ADOPTION:START -->
+**Adoption snapshot:** tracked on [GitHub Releases](https://github.com/ggsrc/blcli/releases) · [Star this repo](https://github.com/ggsrc/blcli) if blcli helps your team
+<!-- ADOPTION:END -->
 
 ---
 
 ## What is blcli?
 
-`blcli` is a CLI tool that bootstraps and manages multi-environment GCP infrastructure end-to-end — from Terraform project creation through Kubernetes add-on deployment to GitOps application rollout — driven by a single `args.yaml` configuration file and a reusable template repository.
+`blcli` bootstraps and operates multi-environment GCP platforms end-to-end — from Terraform project creation through Kubernetes add-on deployment to GitOps application rollout — driven by one `args.yaml` and a self-describing template repository.
 
 ```
 args.yaml  +  bl-template  →  blcli  →  GCP projects + GKE clusters + ArgoCD apps
 ```
 
-**Why blcli?**
+Most teams stitch **Terraform blueprints + shell scripts + ArgoCD** by hand. blcli replaces that glue with a single CLI and a template protocol (`config.yaml` + `args.yaml`) you can fork without changing the tool.
+
+---
+
+## Who is it for?
+
+| Audience | Template | Typical goal |
+|----------|----------|--------------|
+| Platform / SRE teams | [bl-template](https://github.com/ggsrc/bl-template) | Multi-project GCP org (corp / stg / prd), ArgoCD, full GitOps |
+| Solo developers & AI-assisted workflows | [bl-template-personal](https://github.com/ggsrc/bl-template-personal) | Single project + cluster, `minimal` / `full` profiles, low config burden |
+
+---
+
+## Why blcli?
+
+- **Full lifecycle, not just codegen** — `init` generates IaC and manifests; `apply`, `status`, and `rollback` cover deploy and ops.
+- **Self-describing templates** — components, parameters, and dependencies live in the template repo; `init-args` and `explain` keep humans and agents aligned.
+- **Ordered, plannable changes** — Terraform and Kubernetes run in dependency order with an execution plan and `--dry-run` before anything touches your cluster.
+- **One config, layered inheritance** — `global → terraform → project → component` so environment differences stay in `args.yaml`, not copy-paste.
+- **Agent-friendly** — `contract`, `diagnose`, and `runs` expose stable schemas and failure hints for automation.
 
 | Without blcli | With blcli |
 |---|---|
@@ -34,8 +62,37 @@ args.yaml  +  bl-template  →  blcli  →  GCP projects + GKE clusters + ArgoCD
 
 ---
 
+## How it compares
+
+| Approach | Best for | blcli adds |
+|----------|----------|------------|
+| [CFT](https://github.com/GoogleCloudPlatform/cloud-foundation-toolkit) / [Fabric FAST](https://github.com/GoogleCloudPlatform/cloud-foundation-fabric) | Enterprise GCP landing zones (Terraform) | Kubernetes + GitOps orchestration in one CLI |
+| [Kubestack](https://www.kubestack.com/) / `kbst` | Terraform-centric Kubernetes platforms | External template repo + args-driven workflow; lighter to fork |
+| [gke-tf](https://github.com/GoogleCloudPlatform/gke-terraform-generator) | GKE Terraform codegen from YAML | Full stack plus `apply` / `status` / `rollback` |
+| DIY scripts | Maximum control | Conventions, docs, dependency order, and safety rails out of the box |
+
+blcli is the **orchestration layer for “GCP platform from zero to running”** — it does not replace Terraform, kubectl, or Argo CD.
+
+---
+
+## Who uses blcli?
+
+We are collecting early adopters. If blcli runs in your team or lab, [open a PR](https://github.com/ggsrc/blcli/edit/main/README.md) to add your org below (logo optional). The list is mirrored to [README_zh.md](README_zh.md) automatically.
+
+<!-- ADOPTERS:START -->
+<!-- Example:
+- [Your Org](https://example.com) — multi-env GCP platform
+-->
+<!-- ADOPTERS:END -->
+
+---
+
 ## Table of Contents
 
+- [What is blcli?](#what-is-blcli)
+- [Who is it for?](#who-is-it-for)
+- [Why blcli?](#why-blcli)
+- [How it compares](#how-it-compares)
 - [Prerequisites](#prerequisites)
 - [Prepare](#prepare)
 - [Installation](#installation)
