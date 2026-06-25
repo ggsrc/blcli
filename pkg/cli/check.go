@@ -37,6 +37,7 @@ func NewCheckCommand() *cobra.Command {
 
 	// Add subcommands
 	cmd.AddCommand(NewCheckPluginCommand())
+	cmd.AddCommand(NewCheckArgsCommand())
 	cmd.AddCommand(NewCheckRepoCommand())
 	cmd.AddCommand(NewCheckKubernetesCommand())
 
@@ -58,6 +59,53 @@ Install hints are shown by platform (mac / linux) when a tool is missing.`,
 			internal.CheckTools()
 		},
 	}
+
+	return cmd
+}
+
+var (
+	checkArgsPaths       []string
+	checkArgsEnvPaths    []string
+	checkArgsTemplateRepo string
+	checkArgsForceUpdate bool
+	checkArgsCacheExpiry time.Duration
+)
+
+// NewCheckArgsCommand validates args files against template parameter definitions.
+func NewCheckArgsCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "args",
+		Short: "Validate args configuration against template definitions",
+		Long: `Validate merged args files against parameter rules declared in the template repository.
+
+This runs the same validation as init before writing files, without generating output.
+
+Examples:
+  blcli check args --args args.yaml -r ./bl-template
+  blcli check args --args base.yaml --args override.yaml -r github.com/ggsrc/bl-template`,
+		Example: `  blcli check args --args workspace/config/args.yaml -r ../bl-template
+  blcli check args --args args.yaml --env-file .env -r ./bl-template`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return bootstrap.ExecuteCheckArgs(bootstrap.CheckArgsOptions{
+				ArgsPaths:    checkArgsPaths,
+				EnvPaths:     checkArgsEnvPaths,
+				TemplateRepo: checkArgsTemplateRepo,
+				ForceUpdate:  checkArgsForceUpdate,
+				CacheExpiry:  checkArgsCacheExpiry,
+			})
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&checkArgsPaths, "args", nil,
+		"Path to YAML or TOML args file (required, can be specified multiple times; earlier files override later ones)")
+	cmd.Flags().StringArrayVar(&checkArgsEnvPaths, "env-file", nil,
+		"Path to .env override file (optional, can be specified multiple times)")
+	cmd.Flags().StringVarP(&checkArgsTemplateRepo, "template-repo", "r", "",
+		"Template repository URL or local path (required)")
+	cmd.Flags().BoolVarP(&checkArgsForceUpdate, "force-update", "f", false,
+		"Force update templates from remote repository, ignoring cache")
+	cmd.Flags().DurationVar(&checkArgsCacheExpiry, "cache-expiry", 24*time.Hour,
+		"Cache expiry duration for templates (default: 24h)")
 
 	return cmd
 }

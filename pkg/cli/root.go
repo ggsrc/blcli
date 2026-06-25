@@ -40,8 +40,9 @@ var (
 // NewRootCommand creates the root command for blcli
 func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "blcli",
-		Short: "A command-line tool for bootstrapping and managing infrastructure projects",
+		Use:           "blcli",
+		Short:         "A command-line tool for bootstrapping and managing infrastructure projects",
+		SilenceErrors: true,
 		Long: `blcli helps you initialize and manage your project infrastructure with a set of simple commands.
 It supports Terraform, Kubernetes, and GitOps configurations.`,
 		Version: getVersion(),
@@ -59,6 +60,9 @@ It supports Terraform, Kubernetes, and GitOps configurations.`,
 	rootCmd.AddCommand(NewApplyCommand())
 	rootCmd.AddCommand(NewStatusCommand())
 	rootCmd.AddCommand(NewRollbackCommand())
+	rootCmd.AddCommand(NewContractCommand())
+	rootCmd.AddCommand(NewDiagnoseCommand())
+	rootCmd.AddCommand(NewRunsCommand())
 
 	return rootCmd
 }
@@ -66,8 +70,7 @@ It supports Terraform, Kubernetes, and GitOps configurations.`,
 // Execute runs the root command
 func Execute() {
 	rootCmd := NewRootCommand()
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := executeWithDiagnosis(rootCmd.Execute, os.Stderr); err != nil {
 		os.Exit(1)
 	}
 }

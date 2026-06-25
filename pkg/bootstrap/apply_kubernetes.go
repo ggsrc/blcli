@@ -331,10 +331,13 @@ func ExecuteApplyKubernetes(opts ApplyKubernetesOptions, templateLoader *templat
 	// Step 1: Apply namespace (if exists)
 	if hasNamespace {
 		fmt.Println("\n📋 Step 1: Applying namespace...")
-		if err := applyNamespace(ctx, opts, namespaceDir); err != nil {
+		stepLogger := startProgressStep(opts.ProgressTracker, "kubernetes", "namespace", "kubectl apply namespace", namespaceDir)
+		if err := applyNamespaceWithProgress(ctx, opts, namespaceDir, stepLogger); err != nil {
+			stepLogger.fail(err, namespaceDir)
 			fmt.Printf("❌ Failed to apply namespace: %v\n", err)
 			failedComponents = append(failedComponents, "namespace")
 		} else {
+			stepLogger.complete()
 			fmt.Println("✅ Namespace applied successfully")
 		}
 	}
@@ -373,25 +376,29 @@ func ExecuteApplyKubernetes(opts ApplyKubernetesOptions, templateLoader *templat
 					defer wg.Done()
 
 					var err error
+					stepName := fmt.Sprintf("%s/%s", info.projectName, logicalName)
+					stepLogger := startProgressStep(opts.ProgressTracker, "kubernetes", stepName, "apply kubernetes component", info.componentDir)
 					if !configExists {
 						// Component not in config, use default kubectl apply
 						fmt.Printf("   Applying component: %s (project: %s, using kubectl, not in config)\n", logicalName, info.projectName)
-						err = applyWithKubectl(ctx, opts, info.componentDir)
+						err = applyWithKubectlWithProgress(ctx, opts, info.componentDir, stepLogger)
 					} else {
-						err = applyComponent(ctx, opts, component, info.componentDir)
+						err = applyComponentWithProgress(ctx, opts, component, info.componentDir, stepLogger)
 						if err == nil && component.Check != "" {
-							if vErr := validateComponent(ctx, opts, component, info.componentDir); vErr != nil {
+							if vErr := validateComponentWithProgress(ctx, opts, component, info.componentDir, stepLogger); vErr != nil {
 								err = fmt.Errorf("validation failed: %w", vErr)
 							}
 						}
 					}
 
 					if err != nil {
+						stepLogger.fail(err, info.componentDir)
 						fmt.Printf("❌ Failed to apply component %s (project: %s): %v\n", logicalName, info.projectName, err)
 						batchErrorsMu.Lock()
 						failedComponents = append(failedComponents, logicalName)
 						batchErrorsMu.Unlock()
 					} else {
+						stepLogger.complete()
 						fmt.Printf("✅ Component %s (project: %s) applied successfully\n", logicalName, info.projectName)
 					}
 				}()
@@ -403,10 +410,14 @@ func ExecuteApplyKubernetes(opts ApplyKubernetesOptions, templateLoader *templat
 		// Fallback: apply all components in directory order (no parallelism, no validate)
 		for _, info := range allComponents {
 			fmt.Printf("   Applying component: %s (project: %s, using kubectl)\n", info.componentName, info.projectName)
-			if err := applyWithKubectl(ctx, opts, info.componentDir); err != nil {
+			stepName := fmt.Sprintf("%s/%s", info.projectName, info.componentName)
+			stepLogger := startProgressStep(opts.ProgressTracker, "kubernetes", stepName, "apply kubernetes component", info.componentDir)
+			if err := applyWithKubectlWithProgress(ctx, opts, info.componentDir, stepLogger); err != nil {
+				stepLogger.fail(err, info.componentDir)
 				fmt.Printf("❌ Failed to apply component %s: %v\n", info.componentName, err)
 				failedComponents = append(failedComponents, info.componentName)
 			} else {
+				stepLogger.complete()
 				fmt.Printf("✅ Component %s applied successfully\n", info.componentName)
 			}
 		}
@@ -447,6 +458,10 @@ func waitAfterComponentApply(opts ApplyKubernetesOptions, currentIndex, totalCom
 // validateComponent runs post-apply validation for a component if Check is configured.
 // It executes the Check command in the component directory, propagating kube-related options.
 func validateComponent(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string) error {
+	return validateComponentWithProgress(ctx, opts, component, componentDir, progressStepLogger{})
+}
+
+func validateComponentWithProgress(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string, stepLogger progressStepLogger) error {
 	if opts.DryRun {
 		// In dry-run mode, we only describe the plan; validation is not executed.
 		return nil
@@ -457,19 +472,22 @@ func validateComponent(ctx context.Context, opts ApplyKubernetesOptions, compone
 
 	fmt.Printf("   🔍 Validating component: %s\n", component.Name)
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", component.Check)
-	cmd.Dir = componentDir
-	cmd.Env = os.Environ()
+	env := os.Environ()
 	if opts.Kubeconfig != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
+		env = append(env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
 	}
 	if opts.Context != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECTL_CONTEXT=%s", opts.Context))
+		env = append(env, fmt.Sprintf("KUBECTL_CONTEXT=%s", opts.Context))
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
+	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+		Name: "sh",
+		Args: []string{"-c", component.Check},
+		Dir:  componentDir,
+		Env:  env,
+	}, externalCommandCaptureAndStream)
+	stepLogger.recordExternal(result)
+	if err != nil {
 		return err
 	}
 
@@ -536,6 +554,10 @@ func buildKubernetesBatches(orderedComponents []string, componentMap map[string]
 
 // applyNamespace applies namespace files
 func applyNamespace(ctx context.Context, opts ApplyKubernetesOptions, namespaceDir string) error {
+	return applyNamespaceWithProgress(ctx, opts, namespaceDir, progressStepLogger{})
+}
+
+func applyNamespaceWithProgress(ctx context.Context, opts ApplyKubernetesOptions, namespaceDir string, stepLogger progressStepLogger) error {
 	// Find namespace YAML files
 	var namespaceFiles []string
 	err := filepath.Walk(namespaceDir, func(path string, info os.FileInfo, err error) error {
@@ -553,7 +575,7 @@ func applyNamespace(ctx context.Context, opts ApplyKubernetesOptions, namespaceD
 
 	// Apply each namespace file
 	for _, file := range namespaceFiles {
-		if err := applyKubectlFile(ctx, opts, file); err != nil {
+		if err := applyKubectlFileWithProgress(ctx, opts, file, stepLogger); err != nil {
 			return err
 		}
 	}
@@ -563,6 +585,10 @@ func applyNamespace(ctx context.Context, opts ApplyKubernetesOptions, namespaceD
 
 // applyComponent applies a component based on its installType
 func applyComponent(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string) error {
+	return applyComponentWithProgress(ctx, opts, component, componentDir, progressStepLogger{})
+}
+
+func applyComponentWithProgress(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string, stepLogger progressStepLogger) error {
 	installType := component.InstallType
 	if installType == "" {
 		installType = template.InstallTypeKubectl // Default
@@ -573,13 +599,13 @@ func applyComponent(ctx context.Context, opts ApplyKubernetesOptions, component 
 	switch installType {
 	case template.InstallTypeKubectl:
 		// kubectl apply -k <component-dir>
-		return applyWithKubectl(ctx, opts, componentDir)
+		return applyWithKubectlWithProgress(ctx, opts, componentDir, stepLogger)
 	case template.InstallTypeHelm:
 		// helm install <name> <chart> --namespace <namespace> --create-namespace
-		return applyWithHelm(ctx, opts, component, componentDir)
+		return applyWithHelmWithProgress(ctx, opts, component, componentDir, stepLogger)
 	case template.InstallTypeCustom:
 		// Use config.yaml install command
-		return applyWithCustom(ctx, opts, component, componentDir)
+		return applyWithCustomWithProgress(ctx, opts, component, componentDir, stepLogger)
 	default:
 		return fmt.Errorf("unknown installType: %s", installType)
 	}
@@ -587,6 +613,10 @@ func applyComponent(ctx context.Context, opts ApplyKubernetesOptions, component 
 
 // applyWithKubectl applies using kubectl apply -k (kustomize) or kubectl apply -f
 func applyWithKubectl(ctx context.Context, opts ApplyKubernetesOptions, componentDir string) error {
+	return applyWithKubectlWithProgress(ctx, opts, componentDir, progressStepLogger{})
+}
+
+func applyWithKubectlWithProgress(ctx context.Context, opts ApplyKubernetesOptions, componentDir string, stepLogger progressStepLogger) error {
 	// Check if kustomization.yaml exists
 	kustomizationFile := filepath.Join(componentDir, "kustomization.yaml")
 	if _, err := os.Stat(kustomizationFile); err == nil {
@@ -599,13 +629,17 @@ func applyWithKubectl(ctx context.Context, opts ApplyKubernetesOptions, componen
 			args = append(args, "--dry-run=client")
 		}
 
-		cmd := exec.CommandContext(ctx, "kubectl", args...)
+		env := os.Environ()
 		if opts.Kubeconfig != "" {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
+			env = append(env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
 		}
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
+		result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+			Name: "kubectl",
+			Args: args,
+			Env:  env,
+		}, externalCommandCaptureAndStream)
+		stepLogger.recordExternal(result)
+		return err
 	}
 
 	// Fallback: apply all YAML files in directory using kubectl apply -f {dir}
@@ -618,13 +652,17 @@ func applyWithKubectl(ctx context.Context, opts ApplyKubernetesOptions, componen
 		args = append(args, "--dry-run=client")
 	}
 
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	env := os.Environ()
 	if opts.Kubeconfig != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
+		env = append(env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+		Name: "kubectl",
+		Args: args,
+		Env:  env,
+	}, externalCommandCaptureAndStream)
+	stepLogger.recordExternal(result)
+	return err
 }
 
 // applyKubectlFilesInDir applies all YAML files in a directory using kubectl apply -f
@@ -654,6 +692,10 @@ func applyKubectlFilesInDir(ctx context.Context, opts ApplyKubernetesOptions, di
 
 // applyKubectlFile applies a single file using kubectl apply -f
 func applyKubectlFile(ctx context.Context, opts ApplyKubernetesOptions, file string) error {
+	return applyKubectlFileWithProgress(ctx, opts, file, progressStepLogger{})
+}
+
+func applyKubectlFileWithProgress(ctx context.Context, opts ApplyKubernetesOptions, file string, stepLogger progressStepLogger) error {
 	args := []string{"apply", "-f", file}
 	if opts.DryRun {
 		args = append(args, "--dry-run=client")
@@ -668,14 +710,20 @@ func applyKubectlFile(ctx context.Context, opts ApplyKubernetesOptions, file str
 		args = append(args, "--namespace", opts.Namespace)
 	}
 
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+		Name: "kubectl",
+		Args: args,
+	}, externalCommandCaptureAndStream)
+	stepLogger.recordExternal(result)
+	return err
 }
 
 // applyWithHelm applies using helm install with hybrid chart detection
 func applyWithHelm(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string) error {
+	return applyWithHelmWithProgress(ctx, opts, component, componentDir, progressStepLogger{})
+}
+
+func applyWithHelmWithProgress(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string, stepLogger progressStepLogger) error {
 	// Check if helm is available
 	if _, err := exec.LookPath("helm"); err != nil {
 		return fmt.Errorf("helm not found in PATH. Please install helm")
@@ -702,18 +750,25 @@ func applyWithHelm(ctx context.Context, opts ApplyKubernetesOptions, component t
 		args = append(args, "--dry-run")
 	}
 
-	cmd := exec.CommandContext(ctx, "helm", args...)
-	cmd.Env = os.Environ()
+	env := os.Environ()
 	if opts.Kubeconfig != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
+		env = append(env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+		Name: "helm",
+		Args: args,
+		Env:  env,
+	}, externalCommandCaptureAndStream)
+	stepLogger.recordExternal(result)
+	return err
 }
 
 // applyWithCustom applies using custom install command from config.yaml
 func applyWithCustom(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string) error {
+	return applyWithCustomWithProgress(ctx, opts, component, componentDir, progressStepLogger{})
+}
+
+func applyWithCustomWithProgress(ctx context.Context, opts ApplyKubernetesOptions, component template.KubernetesComponent, componentDir string, stepLogger progressStepLogger) error {
 	if component.Install == "" {
 		return fmt.Errorf("install command not specified for custom component %s", component.Name)
 	}
@@ -721,26 +776,31 @@ func applyWithCustom(ctx context.Context, opts ApplyKubernetesOptions, component
 	// Switch kubectl context before executing install script so that
 	// helm/kubectl inside the script target the correct cluster.
 	if opts.Context != "" {
-		switchCmd := exec.CommandContext(ctx, "kubectl", "config", "use-context", opts.Context)
-		switchCmd.Stdout = os.Stdout
-		switchCmd.Stderr = os.Stderr
-		if err := switchCmd.Run(); err != nil {
+		result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+			Name: "kubectl",
+			Args: []string{"config", "use-context", opts.Context},
+		}, externalCommandCaptureAndStream)
+		stepLogger.recordExternal(result)
+		if err != nil {
 			return fmt.Errorf("failed to switch kubectl context to %s: %w", opts.Context, err)
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", component.Install)
-	cmd.Dir = componentDir
-	cmd.Env = os.Environ()
+	env := os.Environ()
 	if opts.Kubeconfig != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
+		env = append(env, fmt.Sprintf("KUBECONFIG=%s", opts.Kubeconfig))
 	}
 	if opts.Context != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECTL_CONTEXT=%s", opts.Context))
+		env = append(env, fmt.Sprintf("KUBECTL_CONTEXT=%s", opts.Context))
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+		Name: "sh",
+		Args: []string{"-c", component.Install},
+		Dir:  componentDir,
+		Env:  env,
+	}, externalCommandCaptureAndStream)
+	stepLogger.recordExternal(result)
+	return err
 }
 
 // applyAllComponentsInDir applies all components in a directory (fallback when config is not available)

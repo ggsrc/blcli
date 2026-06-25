@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"blcli/pkg/config"
@@ -131,11 +130,15 @@ func ExecuteApplyGitOps(opts ApplyGitOpsOptions) error {
 	var failed []string
 	for _, app := range applications {
 		fmt.Printf("   Applying ArgoCD Application: %s\n", app.appYaml)
-		if err := runKubectlApply(ctx, opts, app.appYaml); err != nil {
+		stepName := fmt.Sprintf("%s/%s", app.projectName, app.appName)
+		stepLogger := startProgressStep(opts.ProgressTracker, "gitops", stepName, "kubectl apply argocd application", app.appYaml)
+		if err := runKubectlApplyWithProgress(ctx, opts, app.appYaml, stepLogger); err != nil {
+			stepLogger.fail(err, app.appYaml)
 			fmt.Printf("   ❌ Failed to apply %s: %v\n", app.appYaml, err)
 			failed = append(failed, app.appYaml)
 			continue
 		}
+		stepLogger.complete()
 		fmt.Printf("   ✓ Applied %s\n", app.appYaml)
 	}
 
@@ -156,6 +159,10 @@ func ExecuteApplyGitOps(opts ApplyGitOpsOptions) error {
 }
 
 func runKubectlApply(ctx context.Context, opts ApplyGitOpsOptions, file string) error {
+	return runKubectlApplyWithProgress(ctx, opts, file, progressStepLogger{})
+}
+
+func runKubectlApplyWithProgress(ctx context.Context, opts ApplyGitOpsOptions, file string, stepLogger progressStepLogger) error {
 	args := []string{"apply", "-f", file}
 	if opts.Kubeconfig != "" {
 		args = append(args, "--kubeconfig", opts.Kubeconfig)
@@ -163,8 +170,10 @@ func runKubectlApply(ctx context.Context, opts ApplyGitOpsOptions, file string) 
 	if opts.Context != "" {
 		args = append(args, "--context", opts.Context)
 	}
-	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
+		Name: "kubectl",
+		Args: args,
+	}, externalCommandCaptureAndStream)
+	stepLogger.recordExternal(result)
+	return err
 }

@@ -1,0 +1,60 @@
+name: blcli
+description: Install blcli CLI for infrastructure validation and generation in CI
+inputs:
+  version:
+    description: blcli release version (latest or v1.5.0)
+    required: false
+    default: latest
+  token:
+    description: GitHub token for private template repositories
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Resolve blcli version
+      shell: bash
+      id: version
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          echo "tag=" >> "$GITHUB_OUTPUT"
+        else
+          echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install blcli
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        VERSION="${{ inputs.version }}"
+        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+          x86_64) ARCH=amd64 ;;
+          aarch64|arm64) ARCH=arm64 ;;
+        esac
+
+        if [ "$VERSION" = "latest" ]; then
+          RELEASE_URL="https://github.com/ggsrc/blcli/releases/latest/download/blcli_${OS}_${ARCH}.tar.gz"
+        else
+          RELEASE_URL="https://github.com/ggsrc/blcli/releases/download/${VERSION}/blcli_${OS}_${ARCH}.tar.gz"
+        fi
+
+        mkdir -p "$HOME/.local/bin"
+        TMP="$(mktemp -d)"
+        if curl -fsSL "$RELEASE_URL" -o "$TMP/blcli.tgz"; then
+          tar -xzf "$TMP/blcli.tgz" -C "$TMP"
+          install -m 755 "$TMP/blcli" "$HOME/.local/bin/blcli"
+        else
+          echo "Release binary not found; building blcli from source checkout"
+          if [ ! -f go.mod ]; then
+            echo "No go.mod in workspace — cannot build blcli" >&2
+            exit 1
+          fi
+          go install ./cmd/blcli
+        fi
+
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        blcli version || true

@@ -1,0 +1,4 @@
+terraform apply failed:
+Error: googleapi: Error 409: Resource already exists
+
+The resource was created outside of this Terraform state.

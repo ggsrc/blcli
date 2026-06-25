@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -346,11 +347,40 @@ func testTerraformProject(ctx context.Context, projectDir string, mode string, s
 	return fmt.Errorf("unknown test mode: %s", mode)
 }
 
-// runTerraformCommand runs a terraform command and returns error if it fails
-func runTerraformCommand(ctx context.Context, args []string, emulator *GCSEmulator) error {
+type terraformCommandOutputMode string
+
+const (
+	terraformCommandStream           terraformCommandOutputMode = "stream"
+	terraformCommandCapture          terraformCommandOutputMode = "capture"
+	terraformCommandCaptureAndStream terraformCommandOutputMode = "capture_and_stream"
+)
+
+// TerraformCommandResult captures command metadata for machine-readable step logs.
+type TerraformCommandResult struct {
+	Command string
+	Args    []string
+	Output  []byte
+}
+
+type terraformCommandExecutorFunc func(ctx context.Context, args []string, emulator *GCSEmulator, mode terraformCommandOutputMode) (TerraformCommandResult, error)
+
+var terraformCommandExecutor terraformCommandExecutorFunc = executeTerraformCommand
+
+func terraformCommandString(args []string) string {
+	return externalCommandString("terraform", args)
+}
+
+func runTerraformCommandResult(ctx context.Context, args []string, emulator *GCSEmulator, mode terraformCommandOutputMode) (TerraformCommandResult, error) {
+	return terraformCommandExecutor(ctx, args, emulator, mode)
+}
+
+func executeTerraformCommand(ctx context.Context, args []string, emulator *GCSEmulator, mode terraformCommandOutputMode) (TerraformCommandResult, error) {
+	result := TerraformCommandResult{
+		Command: terraformCommandString(args),
+		Args:    append([]string(nil), args...),
+	}
+
 	cmd := exec.CommandContext(ctx, "terraform", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
 	// Set emulator environment variables if emulator is running
 	if emulator != nil {
@@ -359,35 +389,47 @@ func runTerraformCommand(ctx context.Context, args []string, emulator *GCSEmulat
 		cmd.Env = append(cmd.Env, emulatorEnv...)
 	}
 
-	return cmd.Run()
+	switch mode {
+	case terraformCommandCapture, terraformCommandCaptureAndStream:
+		var stdout, stderr bytes.Buffer
+		if mode == terraformCommandCaptureAndStream {
+			cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
+			cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
+		} else {
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+		}
+
+		err := cmd.Run()
+		if err != nil {
+			// Combine stdout and stderr for error detection (terraform outputs errors to both).
+			combinedOutput := append(stdout.Bytes(), stderr.Bytes()...)
+			result.Output = combinedOutput
+			if stderr.Len() > 0 {
+				return result, fmt.Errorf("%w: %s", err, stderr.String())
+			}
+			return result, err
+		}
+
+		result.Output = stdout.Bytes()
+		return result, nil
+	default:
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return result, cmd.Run()
+	}
+}
+
+// runTerraformCommand runs a terraform command and returns error if it fails.
+func runTerraformCommand(ctx context.Context, args []string, emulator *GCSEmulator) error {
+	_, err := runTerraformCommandResult(ctx, args, emulator, terraformCommandStream)
+	return err
 }
 
 // runTerraformCommandWithOutput runs a terraform command and returns the output
 func runTerraformCommandWithOutput(ctx context.Context, args []string, emulator *GCSEmulator) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "terraform", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	// Set emulator environment variables if emulator is running
-	if emulator != nil {
-		cmd.Env = os.Environ()
-		emulatorEnv := emulator.SetupTerraformBackend()
-		cmd.Env = append(cmd.Env, emulatorEnv...)
-	}
-
-	err := cmd.Run()
-	if err != nil {
-		// Combine stdout and stderr for error detection (terraform outputs errors to both)
-		combinedOutput := append(stdout.Bytes(), stderr.Bytes()...)
-		// Include stderr in error message for better debugging
-		if stderr.Len() > 0 {
-			return combinedOutput, fmt.Errorf("%w: %s", err, stderr.String())
-		}
-		return combinedOutput, err
-	}
-
-	return stdout.Bytes(), nil
+	result, err := runTerraformCommandResult(ctx, args, emulator, terraformCommandCapture)
+	return result.Output, err
 }
 
 // ExecuteCheckRepo executes the check repo command to validate terraform code compliance
