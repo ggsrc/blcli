@@ -18,6 +18,7 @@ var (
 	profilePath  string   // Path to save CPU profile (empty = no profiling)
 	outputPath   string   // Output directory path (overrides workspace in config)
 	modulesSlice []string // Modules to initialize (empty = all)
+	initNoResume bool     // Skip resume prompt for incomplete init operations
 )
 
 // NewInitCommand creates the init command
@@ -132,6 +133,7 @@ Cache Management:
 				ProfilePath:  profilePath,
 				OutputPath:   outputPath,
 				Quiet:        false, // Show progress by default
+				NoResume:     initNoResume,
 			})
 		},
 	}
@@ -153,6 +155,8 @@ Cache Management:
 		"Enable CPU profiling and save to file (e.g., --profile=cpu.prof). Use 'go tool pprof cpu.prof' to analyze")
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "",
 		"Output directory path for generated files (overrides workspace in config file). Default: use workspace from config")
+	cmd.Flags().BoolVar(&initNoResume, "no-resume", false,
+		"Do not prompt to resume an incomplete init operation")
 
 	return cmd
 }
