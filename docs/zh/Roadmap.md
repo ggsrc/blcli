@@ -2,267 +2,232 @@
 
 ## 项目愿景
 
-`blcli` 旨在成为**云平台基础设施**的一站式 CLI：用一份 `args.yaml` 和自描述模板仓，串联 Terraform、Kubernetes 与 GitOps 的生成、部署、观测与回收。
+`blcli` 旨在成为**云平台基础设施**的一站式 CLI：用一份 `args.yaml` 和自描述模板仓，串联 **配置 → 生成 → 部署 → 观测 → 回收** 的完整生命周期。
 
 **品牌 slogan：** 一份配置，走完云平台全链路。 / One config. Full cloud platform lifecycle.
 
-**版本策略：**
-- **v1（GCP-first）**：Phase 1 核心闭环 + Resume + 失败指引；首个完整实现为 GCP。
-- **v1.5**：轻量向导、Agent 工具、CI 示例。
-- **v2**：workflow、环境抽象、第二云模板、monitor、插件。
+**Slogan 拆解（产品北极星）**
 
-详见 `docs/zh/FEATURE_STATUS.md`、`docs/zh/V1.0_STATUS_ANALYSIS.md`。
-
-## 当前状态（v1 候选）
-
-### 已实现（Phase 1）
-- ✅ **init / init-args / apply / status / rollback / check / destroy / explain**
-- ✅ **apply**：terraform、kubernetes、gitops、all；依赖排序、执行计划、--dry-run、**三模块 `--project`**
-- ✅ **status**：`--format=table|json|yaml`
-- ✅ **进度持久化与 Resume**：`init`、`apply all` 可续跑未完成操作（`--no-resume` 跳过）
-- ✅ **失败修复指引**：常见错误输出 next steps
-- ✅ **模板系统**：GitHub/本地、缓存、单次单仓库、init 前 args 校验
-
-### v1 明确不做
-并行 init、自动 Git 提交、失败重试、多模板合并、模板版本锁、apply 失败自动 rollback、`blcli bootstrap` 会话（见 Phase 2）、多云实现（见 v2）。
-
-## 短期路线图 (v1.0)
-
-### Phase 1: 核心功能完善
-
-#### 1.1 增强 `init` 命令
-- [x] **一键初始化所有 repo**（已实现 `blcli init`）
-  - 不要求：并行初始化多个项目
-  - [x] 智能依赖检测和顺序执行（Terraform/Kubernetes 按 config 依赖排序）
-  - [x] 初始化进度显示（ProgressTracker，持久化到 ~/.blcli/progress/）
-  - [x] **中断续跑 Resume**（检测未完成 init，跳过已完成 module；`--no-resume`）
-  - [x] 初始化后提交到 Git 仓库（手动调用 `blcli apply init-repos`，不计划自动）
-
-#### 1.2 部署命令（Roadmap 原 `install`，已实现为 `apply`）
-- [x] **一键部署所有组件**（`blcli apply terraform/kubernetes/gitops/all`）
-  - [x] Terraform 模块部署（含依赖排序、执行计划、--dry-run）
-  - [x] Kubernetes 资源部署（含依赖排序、执行计划、--dry-run）
-  - [x] GitOps 配置同步（含执行计划、--dry-run）
-  - 不要求：分批安装；回滚已实现为 `blcli rollback`
-  - [x] **按 project 执行**：terraform、kubernetes、gitops 均已支持 `--project`
-  - [x] 安装前依赖检查（按 config 依赖排序执行）
-  - [x] **apply all 中断续跑**（按 module 跳过已完成项）
-  - [ ] 安装状态长期持久化（**v1 可选 / v2 环境快照**；当次 progress 已有）
-
-#### 1.3 `status` 命令
-- [x] **检查各组件安装情况**（已实现 `blcli status [terraform|kubernetes|gitops|all]`）
-  - [x] Terraform 状态检查（`terraform show`）
-  - [x] Kubernetes 资源状态（`kubectl get`）
-  - [x] GitOps 同步状态
-  - [x] 健康检查汇总报告
-  - [x] **JSON/YAML 输出**（`--format=table|json|yaml`）
-
-#### 1.4 增强模板系统
-- 不要求：模板版本管理、多模板源合并
-- [x] **单次操作单仓库**：每次通过 `--template-repo` 指定一个仓库；不同命令/不同时机可用不同仓库
-  - 不支持一次加载合并多个模板仓库（无此需求）
-
-### Phase 2: 用户体验优化（**不属于 v1 发布门槛**，见 v1.5）
-
-#### 2.1 交互式 CLI
-- [ ] **交互式配置向导**
-  - `blcli init` 交互式引导
-  - 参数验证和提示
-  - 配置预览和确认
-- [ ] **一站式 Bootstrap 交互会话（`blcli bootstrap`）**（规划中，暂不实现）
-  - **形态**：键入 `blcli bootstrap` 后进入持久化交互终端 session，状态文件保存在本地磁盘（如 `~/.blcli/bootstrap/` 或 workspace 内），一次完成 init-args → init → apply 的连贯流程。
-  - **目标**：用户关注的核心参数尽量少，通过向导式交互与智能默认值降低心智负担，获得流畅的「开箱即用」体验。
-  - **设计要点**：
-    - **状态持久化**：当前进度、已填参数、已执行步骤等可序列化到本地，支持中断后恢复、多次进入同一 session 继续。
-    - **步骤编排**：按 init-args（生成/合并 args）→ init（拉模板、渲染）→ apply（terraform/k8s/gitops）顺序引导，每步可确认或跳过（若状态显示已完成）。
-    - **参数渐进披露**：仅必填项在首屏询问，其余用模板默认或后续步骤按需提示；与现有 `init-args` 生成的 args 结构兼容，便于与非交互流程共用同一套配置。
-    - **与现有命令关系**：bootstrap 为「向导式入口」，底层仍可调用现有 init-args/init/apply；非交互场景继续使用现有子命令与 args 文件。
-  - **可选扩展**：session 与 workspace 绑定、多环境选择（dev/stg/prd）、一键回滚入口等。
-- [x] **进度显示**（已实现）
-  - [x] 实时进度条（init / apply all 使用 ProgressTracker）
-  - [x] 详细日志输出
-  - [ ] 操作时间估算
-
-#### 2.2 错误处理
-- [x] **回滚机制**（独立 `blcli rollback`，按 config 执行；非 apply 失败自动触发）
-- [x] **失败修复指引（v1 粒度）**：常见错误输出 next steps（`PrintFailureHints`）
-- 不要求：失败步骤自动重试
-- [ ] **完整 diagnose / 审计子系统**（v1.5+ Agent 专项；非 v1 阻塞项）
-- [ ] **操作日志 / 审计追踪**（v3 平台化；v1 用 progress 文件）
-
-#### 2.3 配置管理增强（v2 生态）
-- [x] **init 前参数校验**（`validator.Run` + args 自描述）
-- [ ] 配置最佳实践建议、配置模板库、模板市场
-
-## 中期路线图 (v2.0)
-
-### Phase 3: 高级功能
-
-#### 3.1 工作流管理
-- [ ] **`blcli workflow` 命令**
-  - 定义和执行复杂工作流
-  - 工作流模板和复用
-  - 条件执行和分支逻辑
-  - 工作流编排（类似 GitHub Actions）
-
-#### 3.2 多环境管理
-- [ ] **环境抽象**
-  - 环境配置管理（dev/staging/prod）
-  - 环境间配置差异管理
-  - 环境同步和迁移
-- [ ] **环境隔离**
-  - 环境级别的权限控制
-  - 环境状态快照
-  - 环境回滚
-
-#### 3.3 依赖管理
-- [ ] **智能依赖解析**
-  - 自动检测组件依赖关系
-  - 依赖图可视化
-  - 依赖更新影响分析
-- [ ] **依赖锁定**
-  - 依赖版本锁定文件
-  - 依赖更新策略配置
-
-#### 3.4 监控和告警
-- [ ] **`blcli monitor` 命令**
-  - 基础设施健康监控
-  - 资源使用情况追踪
-  - 成本监控和优化建议
-  - 告警规则配置
-
-### Phase 4: 集成和扩展
-
-#### 4.1 CI/CD 集成
-- [ ] **CI/CD 插件**
-  - GitHub Actions 集成
-  - GitLab CI 集成
-  - Jenkins 插件
-  - 通用 webhook 支持
-
-#### 4.2 多云支持
-- [ ] **多云抽象层**
-  - AWS 支持
-  - Azure 支持
-  - 阿里云支持
-  - 多云资源统一管理
-
-#### 4.3 插件系统
-- [ ] **插件架构**
-  - 插件开发 SDK
-  - 插件市场和分发
-  - 社区插件支持
-  - 自定义命令扩展
-
-## 长期路线图 (v3.0+)
-
-### Phase 5: C-S 架构和 Web UI
-
-#### 5.1 服务端架构
-- [ ] **blcli-server**
-  - RESTful API 服务
-  - gRPC 接口
-  - WebSocket 实时通信
-  - 多租户支持
-  - 权限和认证系统
-
-#### 5.2 Web 控制台
-- [ ] **可视化操作界面**
-  - 项目仪表板
-  - 基础设施拓扑图
-  - 实时状态监控
-  - 操作历史查看
-  - 配置编辑器
-- [ ] **协作功能**
-  - 团队管理
-  - 操作审批流程
-  - 变更通知
-  - 审计日志
-
-#### 5.3 移动端支持
-- [ ] **移动应用**
-  - iOS/Android 应用
-  - 推送通知
-  - 快速操作（紧急回滚等）
-  - 移动端状态查看
-
-### Phase 6: AI 和自动化
-
-#### 6.1 智能推荐
-- [ ] **AI 辅助**
-  - 配置优化建议
-  - 成本优化推荐
-  - 安全最佳实践建议
-  - 异常检测和预警
-
-#### 6.2 自动化运维
-- [ ] **自愈能力**
-  - 自动故障恢复
-  - 自动扩缩容
-  - 自动备份和恢复
-  - 智能资源调度
-
-## 技术债务和优化
-
-### 代码质量
-- [ ] 提高测试覆盖率（目标 >80%）
-- [ ] 性能优化（并行处理、缓存）
-- [ ] 代码重构和模块化
-- [ ] 文档完善（API 文档、用户指南）
-
-### 可维护性
-- [ ] 日志系统标准化
-- [ ] 错误处理统一化
-- [ ] 配置管理规范化
-- [ ] 向后兼容性保证
-
-## 社区和生态
-
-### 社区建设
-- [ ] 开源社区运营
-- [ ] 用户案例收集
-- [ ] 最佳实践文档
-- [ ] 视频教程和培训
-
-### 生态扩展
-- [ ] 模板市场
-- [ ] 插件市场
-- [ ] 集成合作伙伴
-- [ ] 认证和培训计划
-
-## 优先级建议（修订）
-
-### v1 发布（已完成或收尾）
-1. Phase 1 命令闭环 ✅
-2. Resume + 失败指引 ✅
-3. 文档与代码一致 ✅
-
-### v1.5
-1. 轻量 `init --wizard` / 配置预览
-2. Agent 工具（`contract`、`diagnose`）最小集
-3. 官方 GitHub Action 示例
-
-### v2（见中期路线图）
-1. `blcli workflow`
-2. 环境抽象 `--env`
-3. 第二云官方模板 + 引擎抽象
-4. `blcli monitor`、插件
-
-## 里程碑
-
-- **v1.0** (2026): GCP-first 核心闭环（init/apply/status/rollback）+ Resume + 失败指引
-- **v1.5** (2026): 向导与 Agent/CI 增强
-- **v2.0** (2026): workflow、多环境、第二云、monitor
-- **v3.0** (2026+): C-S 架构和 Web UI
-- **v4.0** (2026+): AI 和自动化运维
-
-## 反馈和贡献
-
-欢迎提出建议和贡献代码！请通过以下方式参与：
-- GitHub Issues: 报告问题和建议
-- GitHub Discussions: 讨论功能和设计
-- Pull Requests: 贡献代码
+| 生命周期阶段 | 用户期望 | 对应能力 |
+|-------------|----------|----------|
+| **一份配置** | 少文件、少重复、可校验 | `args.yaml`、`init-args`、`--profile`、`check args`、`explain` |
+| **生成** | 从模板到可执行代码 | `init`、自描述模板仓、依赖排序 |
+| **部署** | 可计划、可续跑、可局部执行 | `apply`、`--dry-run`、`--project`、Resume |
+| **观测** | 知道当前跑得怎样 | `status`、`runs`、（v3）`monitor` |
+| **回收 / 修复** | 失败能自救、能回滚 | `rollback`、`destroy`、`diagnose`、失败 hints |
+| **自动化** | CI 与 Agent 能接得上 | GitHub Action、`contract`、（v3）`workflow` |
+| **云平台** | 不只一家云、不只 GCP | GCP-first today；（v3）第二云模板 |
 
 ---
 
-*最后更新：2026-06-25（修订 v1 范围、Resume、失败指引、文档与代码对齐）*
+## 版本策略（2026-06 修订）
+
+> **编号调整：** 原规划中的 v1.5 升格为 **v2.0**（已实现）；原 v2.0 → **v3.0**；原 v3.0 → **v4.0**；原 v4.0 → **v5.0**。
+
+| 版本 | 定位 | 状态 |
+|------|------|------|
+| **v1.0** | GCP-first Phase 1 核心闭环 + Resume + 失败指引 | ✅ 已合入 main |
+| **v2.0** | 更好上手 + 更好给 Agent/CI 用（原 v1.5） | ✅ 已合入 main（PR #4） |
+| **v3.0** | 全链路自动化与多环境/多云扩展（原 v2.0） | 📋 规划中 |
+| **v4.0** | 平台化：服务端 + Web UI（原 v3.0） | 🔮 远期 |
+| **v5.0** | 智能运维与深度自动化（原 v4.0） | 🔮 远期 |
+
+详见 `docs/zh/FEATURE_STATUS.md`。
+
+---
+
+## 当前状态（main）
+
+### v1.0 + v2.0 已交付 ✅
+
+- **核心命令**：init / init-args / apply / status / rollback / check / destroy / explain
+- **可靠性**：Resume（module 级）、`PrintFailureHints` + `agent.DiagnoseFailure`
+- **v2.0 增强**：`--profile` / `--wizard` / `--preview`、`check args`、`contract` / `diagnose` / `runs`、GitHub Action、`CHANGELOG`
+- **模板**：GCP 官方 `bl-template` + 个人版 `bl-template-personal`
+
+### 待收尾（发布流程，非功能）
+
+- [ ] 对外打 **v1.0.0**、**v2.0.0** Git tag 与 GitHub Release
+- [ ] `bl-template` CI workflow / README 单独合入
+- [ ] `Roadmap` / `V1.0_STATUS_ANALYSIS` 与 main 完全对齐（本文档已修订）
+
+---
+
+## v1.0 回顾（已完成）
+
+Phase 1：一份配置驱动 GCP 全链路命令闭环。
+
+- [x] init / apply（terraform · kubernetes · gitops · all）/ status / rollback / destroy / check / explain
+- [x] 依赖排序、执行计划、`--dry-run`、三模块 `--project`
+- [x] `status --format=table|json|yaml`
+- [x] 进度持久化与 Resume（`init`、`apply all`；`--no-resume` 跳过）
+- [x] init 前 args 校验（`validator.Run`）
+- [x] 模板：GitHub/本地、缓存、单仓库约定
+
+**v1 明确不做：** 并行 init、自动 Git 提交、失败自动重试、多模板源合并、apply 失败自动 rollback。
+
+---
+
+## v2.0 回顾（已完成，原 v1.5）
+
+围绕 slogan 的「更好配置、更好自动化接入」。
+
+- [x] `init-args --profile`（模板 overlay）
+- [x] `init-args --wizard`、`--preview`；`init --preview`
+- [x] `blcli check args`
+- [x] `contract` / `diagnose` / `runs` + failure fixtures
+- [x] GitHub composite action + `docs/zh/CI.md`
+- [x] Agent 整合失败 hints、progress step log
+
+**v2 明确不做 / 降级：**
+
+- `blcli bootstrap` 全 session → 弱需求，与 wizard 重叠，**暂不实现**
+- Resume 细粒度（terraform project 级）→ **不做**
+- 完整 `init --wizard` 逐步引导 → 已有轻量 `init-args --wizard`，**够用**
+
+---
+
+## v3.0 路线图（原 v2.0）
+
+v3 目标：**在一份配置之上，覆盖多环境、可编排的全链路，并迈出「云平台」第二步（第二云）。**
+
+### 优先级总览
+
+| 优先级 | 含义 | 项 |
+|--------|------|-----|
+| **P0 强需求** | 直接支撑 slogan「一份配置 · 全链路 · 云平台」 | 见下表 |
+| **P1 重要** | 显著提升体验，但可用脚本/现有命令凑合 | 见下表 |
+| **P2 弱需求** | 生态/锦上添花，可延后或不做 | 见下表 |
+
+### P0 — 强需求（v3.0 核心）
+
+| # | 能力 | 为什么强（slogan 对齐） | 交付形态（建议） |
+|---|------|------------------------|------------------|
+| 1 | **环境抽象 `--env`** | 「一份配置」管 dev/stg/prd，是全链路多环境的基础 | args 模型 + 全局 `--env`；init/apply/status/rollback 过滤 |
+| 2 | **`blcli workflow`** | 把 init-args → init → apply → check 串成**可声明的全链路**，是 slogan 的自动化表达 | YAML 工作流 + dry-run；复用 progress/runs/contract |
+| 3 | **第二云官方模板** | slogan 是「云平台」不是「GCP 工具」；需至少一条非 GCP 完整路径 | 引擎最小抽象 + AWS 或 Azure 模板仓 MVP |
+| 4 | **观测增强** | 「走完」包含知道跑得怎样；`status` 是一次性的 | `monitor` 只读 MVP：周期性 status + 可选成本/健康汇总 |
+| 5 | **环境状态快照** | 与 Resume 互补：跨会话知道「这个环境装到哪了」 | 环境级状态文件，与 `runs` 关联 |
+
+### P1 — 重要（v3.x 迭代）
+
+| # | 能力 | 说明 |
+|---|------|------|
+| 6 | **workflow 模板库** | 常用流水线（bootstrap、升级、销毁）可复用 |
+| 7 | **环境 diff / promote** | 对比两环境 args 或生成物差异；晋升 stg→prd |
+| 8 | **CI 扩展** | GitLab CI 样板；webhook 触发 workflow |
+| 9 | **依赖版本锁定** | 模板 `@tag` + lock 文件，满足可重复构建 |
+| 10 | **diagnose 规则库扩展** | 更多云厂商/常见错误场景 |
+| 11 | **完整 `init --wizard`** | 若用户反馈 `init-args --wizard` 不够，再补 init 侧引导 |
+
+### P2 — 弱需求（v3 不阻塞，可进 v4+）
+
+| # | 能力 | 说明 |
+|---|------|------|
+| — | `blcli bootstrap` 持久 session | 与 wizard + workflow 重叠 |
+| — | 操作时间估算 | 锦上添花 |
+| — | 依赖图可视化 | _power user_；explain + 文档可先代替 |
+| — | 配置模板市场 / 模板市场 | 生态项；双模板仓已够用 |
+| — | Jenkins 插件 | GitHub Actions 已覆盖主路径 |
+| — | 多云统一控制台（3+ 云同时管） | 第二云 MVP 后再议 |
+| — | 环境级 RBAC | 偏企业平台，适合 v4 server |
+| — | 插件市场 | 先有插件 SDK 再谈市场 |
+| — | 失败自动重试 | 产品约定不做（workflow 可显式重试步骤） |
+
+### v3.0 建议实施顺序
+
+```mermaid
+flowchart LR
+  E["1. --env"] --> W["2. workflow MVP"]
+  W --> C["3. 第二云模板"]
+  C --> M["4. monitor 只读"]
+  M --> S["5. 环境快照"]
+```
+
+1. **`--env`** — 改动面可控，立刻改善「一份配置多环境」
+2. **`workflow` MVP** — 复用 v2 的 contract/runs/progress，兑现「全链路」
+3. **第二云** — 证明 slogan 中的「云平台」
+4. **`monitor` 只读** — 补齐「观测」阶段
+5. **环境快照** — 与 Resume、runs 形成完整状态故事
+
+### v3.0 里程碑（草案）
+
+- **v3.0** (2026): `--env` + `workflow` MVP + 第二云（选一）+ `monitor` 只读
+- **v3.1** (2026+): 环境 diff/promote、workflow 模板、CI 扩展
+- **v3.2** (2026+): 依赖锁定、diagnose 扩展、插件 SDK 探索
+
+---
+
+## v4.0 路线图（原 v3.0）
+
+**平台化：** 从 CLI 到团队可协作的产品。
+
+### P0 强需求
+
+| 能力 | 说明 |
+|------|------|
+| **blcli-server** | REST/gRPC API，供 Web UI 与 CI 统一调用 |
+| **Web 控制台** | 项目仪表板、配置编辑、操作历史、拓扑视图 |
+| **多租户与认证** | 团队使用的基础 |
+
+### P1 / P2
+
+| 优先级 | 能力 |
+|--------|------|
+| P1 | 操作审批、变更通知、审计日志 |
+| P2 | 移动端、推送通知 |
+
+---
+
+## v5.0 路线图（原 v4.0）
+
+**智能运维：** 在稳定平台之上的 AI 与自动化。
+
+| 优先级 | 能力 |
+|--------|------|
+| P0 | 配置/成本/安全优化建议（基于真实状态） |
+| P1 | 异常检测与预警 |
+| P2 | 自愈、自动扩缩容、智能调度（需强 guardrail，避免与「不自动 apply」原则冲突） |
+
+---
+
+## 技术债务（跨版本）
+
+| 项 | 目标版本 | 优先级 |
+|----|----------|--------|
+| 测试覆盖率 >80% | v3 持续 | P1 |
+| 日志/错误处理统一 | v3 | P1 |
+| 文档与代码同步机制 | v2 收尾 / v3 | P0 |
+| 性能（并行、缓存） | v3+ | P2 |
+
+---
+
+## 社区与生态（跨版本，均为 P2）
+
+- 用户案例、最佳实践、视频教程
+- 模板市场、插件市场、认证培训
+- 不在 v3 核心交付范围内
+
+---
+
+## 里程碑一览
+
+| 版本 | 时间 | 主题 |
+|------|------|------|
+| **v1.0** | 2026 | GCP-first 核心闭环 + Resume + 失败指引 |
+| **v2.0** | 2026 | 向导 / 预览、Agent 工具、CI 集成 |
+| **v3.0** | 2026 | 多环境、workflow、第二云、观测增强 |
+| **v4.0** | 2026+ | 服务端 + Web UI + 团队协作 |
+| **v5.0** | 2026+ | AI 辅助与深度自动化运维 |
+
+---
+
+## 反馈和贡献
+
+- GitHub Issues：问题与建议
+- GitHub Discussions：功能与设计讨论
+- Pull Requests：代码贡献
+
+---
+
+*最后更新：2026-06-26（版本号重排：v1.5→v2.0，v2→v3；按 slogan 重梳优先级）*

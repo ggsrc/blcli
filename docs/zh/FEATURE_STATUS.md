@@ -1,99 +1,107 @@
-# blcli 功能盘点与 v1 / v1.5 范围
+# blcli 功能盘点与版本范围
 
-> 更新日期：2026-06-25  
-> 基于 **feat/v1.5-ruipeng**（main + dev/v2.0-feature 合并后）
+> 更新日期：2026-06-26  
+> 基于 **main**（v1.0 + v2.0 已合入）
 
-## v1 发布标准（修订后）
+## 版本策略（修订）
 
-**v1 = Phase 1 核心闭环（GCP-first）+ 文档与代码一致 + 两项可靠性体验（Resume、失败指引）**
+| 版本 | 含义 | 状态 |
+|------|------|------|
+| **v1.0** | GCP-first Phase 1 闭环 + Resume + 失败指引 | ✅ |
+| **v2.0** | 向导/预览、Agent 工具、CI（原规划 v1.5） | ✅ |
+| **v3.0** | workflow、`--env`、第二云、monitor（原规划 v2.0） | 📋 未开始 |
+| **v4.0** | 服务端 + Web UI（原 v3.0） | 🔮 |
+| **v5.0** | AI 与深度自动化（原 v4.0） | 🔮 |
 
-- **GCP-first today**：首个完整实现为 GCP；品牌 slogan 面向云平台，多云在 v2。
-- **不包含 Phase 2 体验项**：完整 bootstrap 会话、配置模板市场、操作时间估算、独立审计系统等。
-- **`install` 已迁移为 `apply`**：不再作为缺口跟踪。
+**Slogan：** 一份配置，走完云平台全链路。 / One config. Full cloud platform lifecycle.
 
 ---
 
-## 一、已实现功能 ✅
+## 一、已实现（v1.0 + v2.0）✅
 
 ### 核心命令
 
-| 命令 | 状态 | 说明 |
+| 命令 | 版本 | 说明 |
 |------|------|------|
-| **init** | ✅ | terraform/kubernetes/gitops；模板加载、args 合并、校验、进度、**`--preview`** |
-| **init-args** | ✅ | 从模板仓生成 args；`--profile` overlay；**`--wizard` / `--preview`** |
-| **destroy** | ✅ | 销毁已初始化目录；terraform destroy 带双重确认 |
-| **check** | ✅ | plugin / repo / kubernetes / **args** |
-| **apply terraform/kubernetes/gitops/all** | ✅ | 依赖排序、执行计划、--dry-run、`--project`（三模块均支持） |
-| **apply init-repos** | ✅ | git init + GitHub 仓库创建与推送 |
-| **status** | ✅ | terraform/kubernetes/gitops；`--format=table|json|yaml` |
-| **rollback** | ✅ | 按 config Rollback 配置；支持 `--project` |
-| **explain** | ✅ | 解释模板组件与参数 |
-| **contract** | ✅ | 输出 Agent 工具契约，支持 json/yaml/table |
-| **diagnose** | ✅ | 失败分类与 next steps / repair commands |
-| **runs** | ✅ | 查询 `~/.blcli/progress` 运行记录 |
-| **version** | ✅ | 版本与构建时间 |
+| **init** | v1 + v2 | 模板渲染；v2：`--preview` |
+| **init-args** | v1 + v2 | 生成 args；v2：`--profile`、`--wizard`、`--preview` |
+| **destroy** | v1 | 全链路销毁 |
+| **check** | v1 + v2 | plugin / repo / kubernetes；v2：**args** |
+| **apply** * | v1 | terraform/kubernetes/gitops/all；`--project`、`--dry-run` |
+| **apply init-repos** | v1 | Git 仓库初始化与推送 |
+| **status** | v1 | `--format=table|json|yaml` |
+| **rollback** | v1 | 按 config 回滚 |
+| **explain** | v1 | 组件与参数说明 |
+| **contract** | v2 | Agent 工具契约 |
+| **diagnose** | v2 | 失败分类与修复建议 |
+| **runs** | v2 | progress 运行记录查询 |
+| **version** | v1 | 版本信息 |
 
 ### 支撑能力
 
-| 能力 | 状态 | 说明 |
-|------|------|------|
-| Terraform/K8s 依赖排序 | ✅ | DFS 拓扑排序 |
-| 执行计划与 --dry-run | ✅ | 各 apply 子命令 |
-| 进度持久化 | ✅ | `~/.blcli/progress/{operation-id}.yaml` |
-| **中断续跑 Resume** | ✅ | `init` / `apply all` 检测未完成操作并提示恢复；`--no-resume` 跳过 |
-| **失败修复指引** | ✅ | `PrintFailureHints` + `agent.DiagnoseFailure` 双层提示 |
-| **机器可读 step log** | ✅ | ProgressTracker 记录子命令与输出摘要 |
-| init 参数校验 | ✅ | `validator.Run` 在 init 写文件前执行；`check args` 可单独校验 |
-| 模板加载 | ✅ | GitHub/本地、缓存、私有仓库 |
-| **Agent 工具契约** | ✅ | `blcli contract` |
-| **失败注入场景** | ✅ | `integration/fixtures/failures` 离线样本 |
-| **CI 集成** | ✅ | `.github/actions/blcli` composite action + `docs/zh/CI.md` |
+| 能力 | 版本 |
+|------|------|
+| 依赖排序、执行计划、--dry-run | v1 |
+| 进度持久化、Resume（module 级） | v1 |
+| 失败 hints + agent 诊断 | v1 + v2 |
+| step log、progress 子命令记录 | v2 |
+| init 前校验 + `check args` | v1 + v2 |
+| GitHub Action + CI 文档 | v2 |
+| failure fixtures | v2 |
 
 ---
 
-## 二、v1 / v1.5 明确不做 ❌
+## 二、明确不做（跨版本产品约定）❌
 
 | 项 | 说明 |
 |----|------|
-| 并行初始化 | 产品约定 |
-| init 后自动 Git 提交 | 使用 `apply init-repos` |
-| 失败自动重试 | 产品约定 |
-| 多模板源合并 | 产品约定 |
-| 模板版本锁定 | 留给 v2 依赖管理 |
-| apply 失败自动 rollback | 使用独立 `blcli rollback` |
-| **`blcli bootstrap` 交互会话** | Roadmap 标注 **暂不实现** |
-| **Resume 细粒度（terraform project 级）** | v1.5 明确排除（D3） |
-| 配置模板库 / 模板市场 | Phase 2.3 / v2 生态 |
-| 操作时间估算 | 非 v1 |
-| 独立审计日志系统 | v3 范畴 |
-| 多云模板与引擎 | v2（当前 GCP-first） |
+| 并行 init | 产品约定 |
+| init 后自动 Git 提交 | 用 `apply init-repos` |
+| apply 失败自动 rollback | 用 `rollback` |
+| 失败步骤自动重试 | 产品约定（workflow 可显式定义重试） |
+| 多模板源一次合并 | 产品约定 |
+| `blcli bootstrap` 全 session | 弱需求，与 wizard 重叠 |
+| Resume 细粒度（project 级） | v2 已明确排除 |
 
 ---
 
-## 三、v1.5 交付清单（除 D3 外）
+## 三、v2.0 交付清单（原 v1.5，已完成）
 
-| 编号 | 项 | 状态 |
-|------|-----|------|
-| A1 | `init-args --profile` | ✅ |
-| A2 | `init-args --wizard` | ✅ |
-| A3 | 配置预览 `--preview` | ✅ |
-| B1/B2/B3 | contract / diagnose / fixtures | ✅ |
-| C1/C2 | GitHub Action + CI 文档 | ✅ |
-| D1 | `blcli runs` | ✅ |
-| D2 | 扩展失败 hints（agent 整合） | ✅ |
-| D4 | `check args` | ✅ |
-| D5 | CHANGELOG | ✅ |
-| **D3** | Resume 细粒度 | ❌ 不做 |
-| T1/T2 | 模板文档 + CI 样板 | ✅（bl-template workflow） |
+| 项 | 状态 |
+|----|------|
+| `init-args --profile` | ✅ |
+| `init-args --wizard` / `--preview` | ✅ |
+| `init --preview` | ✅ |
+| `check args` | ✅ |
+| `contract` / `diagnose` / `runs` | ✅ |
+| failure fixtures | ✅ |
+| GitHub Action + `docs/zh/CI.md` | ✅ |
+| CHANGELOG | ✅ |
+| 模板 CI 样板（bl-template） | ⚠️ 待单独 PR |
 
 ---
 
-## 四、v2 预览
+## 四、v3.0 缺口预览（原 v2.0）
 
-| 版本 | 重点 |
-|------|------|
-| **v2** | `workflow`；`--env` 环境抽象；第二云模板；`monitor`；插件 |
+按 slogan 优先级，详见 `docs/zh/Roadmap.md`。
+
+| 优先级 | 能力 | 状态 |
+|--------|------|------|
+| **P0** | `--env` 环境抽象 | ❌ |
+| **P0** | `blcli workflow` | ❌ |
+| **P0** | 第二云官方模板 | ❌ |
+| **P0** | `monitor` 观测增强 | ❌ |
+| **P0** | 环境状态快照 | ❌ |
+| P1 | 环境 diff/promote、workflow 模板、CI 扩展 | ❌ |
+| P2 | 模板市场、插件市场、依赖可视化 | ❌ |
 
 ---
 
-*本文档用于产品与开发对齐 v1 / v1.5 范围与下一阶段顺序。*
+## 五、发布待办
+
+- [ ] `v1.0.0` / `v2.0.0` Git tag 与 Release
+- [ ] 文档与 main 完全同步
+
+---
+
+*功能盘点用于产品与开发对齐；路线图与优先级以 `docs/zh/Roadmap.md` 为准。*
