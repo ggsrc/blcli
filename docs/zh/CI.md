@@ -50,7 +50,7 @@ jobs:
 
 | 输入 | 说明 | 默认 |
 |------|------|------|
-| `version` | blcli 版本（`latest` 或 `v1.5.0`） | `latest` |
+| `version` | blcli 版本（`latest` 或 `v2.0.0`） | `latest` |
 | `token` | GitHub token（私有模板仓） | `${{ github.token }}` |
 
 ## 推荐流水线阶段
