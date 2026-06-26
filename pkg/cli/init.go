@@ -19,6 +19,7 @@ var (
 	outputPath   string   // Output directory path (overrides workspace in config)
 	modulesSlice []string // Modules to initialize (empty = all)
 	initNoResume bool     // Skip resume prompt for incomplete init operations
+	initPreview  bool     // Preview init without writing files
 )
 
 // NewInitCommand creates the init command
@@ -103,7 +104,10 @@ Cache Management:
 
   # Specify output directory (overrides workspace in config)
   blcli init github.com/user/repo -a args.yaml -o workspace/output
-  blcli init ./bl-template -a args.yaml --modules terraform -o workspace/output`,
+  blcli init ./bl-template -a args.yaml --modules terraform -o workspace/output
+
+  # Preview what init would generate without writing files
+  blcli init ./bl-template -a args.yaml --preview`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Template repo: first positional or default
 			templateRepoValue := "github.com/ggsrc/infra-template"
@@ -122,7 +126,7 @@ Cache Management:
 			// Modules: empty = all (bootstrap expands to terraform, kubernetes, gitops)
 			modules := modulesSlice
 
-			return bootstrap.ExecuteInit(bootstrap.InitOptions{
+			initOpts := bootstrap.InitOptions{
 				Modules:      modules,
 				TemplateRepo: templateRepoValue,
 				ArgsPaths:    argsFiles,
@@ -134,7 +138,12 @@ Cache Management:
 				OutputPath:   outputPath,
 				Quiet:        false, // Show progress by default
 				NoResume:     initNoResume,
-			})
+				Preview:      initPreview,
+			}
+			if initPreview {
+				return bootstrap.PrintInitPreview(initOpts)
+			}
+			return bootstrap.ExecuteInit(initOpts)
 		},
 	}
 
@@ -157,6 +166,8 @@ Cache Management:
 		"Output directory path for generated files (overrides workspace in config file). Default: use workspace from config")
 	cmd.Flags().BoolVar(&initNoResume, "no-resume", false,
 		"Do not prompt to resume an incomplete init operation")
+	cmd.Flags().BoolVar(&initPreview, "preview", false,
+		"Preview what init would generate without writing files")
 
 	return cmd
 }

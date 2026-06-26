@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"fmt"
 	"strings"
+
+	"blcli/pkg/agent"
 )
 
 // errHint describes an actionable recovery hint for a common failure.
@@ -13,12 +15,35 @@ type errHint struct {
 }
 
 // PrintFailureHints writes recovery suggestions for known error patterns.
+// It prefers agent.DiagnoseFailure when a category is matched, then falls back to
+// lightweight operation-specific hints.
 func PrintFailureHints(operation string, err error) {
 	if err == nil {
 		return
 	}
-	msg := strings.ToLower(err.Error())
-	hint := matchFailureHint(operation, msg)
+	msg := err.Error()
+
+	diagnosis := agent.DiagnoseFailure(msg)
+	if diagnosis.Category != "unknown" {
+		fmt.Printf("\nSuggested next steps (%s):\n", diagnosis.Category)
+		fmt.Printf("  Summary: %s\n", diagnosis.Summary)
+		for i, step := range diagnosis.NextSteps {
+			fmt.Printf("  %d. %s\n", i+1, step)
+		}
+		if len(diagnosis.RepairCommands) > 0 {
+			fmt.Println("  Repair commands:")
+			for _, command := range diagnosis.RepairCommands {
+				fmt.Printf("    - %s\n", command)
+			}
+		}
+		if len(diagnosis.References) > 0 {
+			fmt.Printf("  Docs: %s\n", strings.Join(diagnosis.References, ", "))
+		}
+		fmt.Println("  Machine-readable: blcli diagnose --file <log> --format json")
+		return
+	}
+
+	hint := matchFailureHint(operation, strings.ToLower(msg))
 	if hint == nil {
 		return
 	}

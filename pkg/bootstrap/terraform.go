@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tf "blcli/pkg/bootstrap/terraform"
@@ -64,12 +65,15 @@ func bootstrapTerraformFromConfig(global config.GlobalConfig, tfConfig *config.T
 
 	// 1. Handle init items
 	if progressTracker != nil {
-		if err := progressTracker.StartStep("terraform", "init-items"); err != nil {
+		if err := progressTracker.StartStepWithCommand("terraform", "init-items", "render terraform init items"); err != nil {
 			// Non-fatal, continue
 		}
 	}
 	initDir := filepath.Join(workspace, "terraform", "init")
 	if err := internal.EnsureDir(initDir); err != nil {
+		if progressTracker != nil {
+			progressTracker.FailStepWithContext("terraform", "init-items", fmt.Sprintf("%v", err), initDir)
+		}
 		return nil, fmt.Errorf("failed to create terraform/init dir: %w", err)
 	}
 
@@ -79,11 +83,12 @@ func bootstrapTerraformFromConfig(global config.GlobalConfig, tfConfig *config.T
 	// Initialize init items (workspace is the root directory for destination paths)
 	if err := tf.InitializeInitItems(terraformConfig, templateLoader, templateArgs, workspace, data); err != nil {
 		if progressTracker != nil {
-			progressTracker.FailStep("terraform", "init-items", fmt.Sprintf("%v", err))
+			progressTracker.FailStepWithContext("terraform", "init-items", fmt.Sprintf("%v", err), initDir)
 		}
 		return nil, err
 	}
 	if progressTracker != nil {
+		progressTracker.RecordStepOutput("terraform", "init-items", fmt.Sprintf("rendered terraform init items under %s", initDir))
 		progressTracker.CompleteStep("terraform", "init-items")
 	}
 
@@ -101,45 +106,53 @@ func bootstrapTerraformFromConfig(global config.GlobalConfig, tfConfig *config.T
 
 	// 2. Handle modules (shared across all projects)
 	if progressTracker != nil {
-		if err := progressTracker.StartStep("terraform", "modules"); err != nil {
+		if err := progressTracker.StartStepWithCommand("terraform", "modules", "render terraform shared modules"); err != nil {
 			// Non-fatal, continue
 		}
 	}
 	modulesDir := filepath.Join(workspace, "terraform", "gcp", "modules")
 	if err := internal.EnsureDir(modulesDir); err != nil {
+		if progressTracker != nil {
+			progressTracker.FailStepWithContext("terraform", "modules", fmt.Sprintf("%v", err), modulesDir)
+		}
 		return nil, fmt.Errorf("failed to create modules dir: %w", err)
 	}
 
 	if err := tf.InitializeModules(terraformConfig, templateLoader, templateArgs, modulesDir, global, profiler); err != nil {
 		if progressTracker != nil {
-			progressTracker.FailStep("terraform", "modules", fmt.Sprintf("%v", err))
+			progressTracker.FailStepWithContext("terraform", "modules", fmt.Sprintf("%v", err), modulesDir)
 		}
 		return nil, err
 	}
 	if progressTracker != nil {
+		progressTracker.RecordStepOutput("terraform", "modules", fmt.Sprintf("rendered terraform shared modules under %s", modulesDir))
 		progressTracker.CompleteStep("terraform", "modules")
 	}
 
 	// 3. Handle projects (one per project name)
 	if progressTracker != nil {
-		if err := progressTracker.StartStep("terraform", "projects"); err != nil {
+		if err := progressTracker.StartStepWithCommand("terraform", "projects", "render terraform project directories"); err != nil {
 			// Non-fatal, continue
 		}
 	}
 	// gcpDir is terraform/gcp/ (GlobalName is only used in Terraform backend prefix, not file system path)
 	gcpDir := filepath.Join(workspace, "terraform", "gcp")
 	if err := internal.EnsureDir(gcpDir); err != nil {
+		if progressTracker != nil {
+			progressTracker.FailStepWithContext("terraform", "projects", fmt.Sprintf("%v", err), gcpDir)
+		}
 		return nil, fmt.Errorf("failed to create terraform/gcp dir %s: %w", gcpDir, err)
 	}
 
 	initialized, err := tf.InitializeProjects(terraformConfig, templateLoader, templateArgs, gcpDir, projects, global, tfConfig, subdirComponents, profiler)
 	if err != nil {
 		if progressTracker != nil {
-			progressTracker.FailStep("terraform", "projects", fmt.Sprintf("%v", err))
+			progressTracker.FailStepWithContext("terraform", "projects", fmt.Sprintf("%v", err), gcpDir)
 		}
 		return nil, err
 	}
 	if progressTracker != nil {
+		progressTracker.RecordStepOutput("terraform", "projects", fmt.Sprintf("rendered terraform projects under %s: %s", gcpDir, strings.Join(initialized, ", ")))
 		progressTracker.CompleteStep("terraform", "projects")
 	}
 

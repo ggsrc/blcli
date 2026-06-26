@@ -9,6 +9,7 @@ This document provides detailed usage examples and best practices for using `blc
 - [Configuration Guide](#configuration-guide)
 - [Template Repository Guide](#template-repository-guide)
 - [Common Workflows](#common-workflows)
+- [Agent Workflows](#agent-workflows)
 - [Troubleshooting](#troubleshooting)
 
 ## Quick Start
@@ -72,6 +73,43 @@ blcli init terraform -r /path/to/bl-template -a args.yaml
 ```
 
 ## Command Reference
+
+### `blcli contract`
+
+输出 v2 面向 AI Agent 的工具契约。
+
+```bash
+blcli contract --format json
+blcli contract "apply terraform" --format yaml
+```
+
+契约包含命令输入、输出、JSON schema、退出码、示例、兼容策略和 Agent 调用建议。自动化场景建议使用 JSON。
+
+### `blcli diagnose`
+
+对失败输出进行分类，并给出修复步骤。
+
+```bash
+blcli diagnose --message "Error 409: already exists" --format json
+blcli diagnose --file execution_stage5.log
+```
+
+JSON 输出包含 `category`、`confidence`、`matched_keywords`、`next_steps` 和 `repair_commands`。
+普通命令失败且命中已知模式时，也会在 stderr 输出简洁诊断。
+`integration/fixtures/failures/` 下提供离线失败样本，可安全复跑诊断。
+`integration/fixtures/agent-replay/` 下提供 contract、diagnose、runs 的 Agent 复盘 playbook。
+
+### `blcli runs`
+
+列出和查看 `~/.blcli/progress` 中持久化的运行记录。
+
+```bash
+blcli runs list --format json
+blcli runs list --status failed
+blcli runs show op-20260529-103000-app --format yaml
+```
+
+用于查询 run id、查看 step 状态，并取回已记录的错误信息。Step 记录会在可用时包含时间戳、耗时、状态、命令/动作、输出摘录、错误位置和错误消息。
 
 ### `blcli init-args`
 
@@ -560,6 +598,35 @@ blcli apply init-repos -o myorg -d ./workspace/output
 # 需已安装并登录 gh：gh auth login
 ```
 
+## Agent Workflows
+
+### 读取工具契约
+
+```bash
+blcli contract --format json
+blcli contract "apply terraform" --format json
+blcli contract "runs list" --format json
+```
+
+Agent 在规划命令调用前应先读取 contract，并在可行时用 `input_schema` 校验参数。命令支持时，优先使用 `--dry-run` 和 `--format json`。
+
+### 诊断失败运行
+
+```bash
+# 先捕获失败命令输出
+blcli apply terraform -d ./workspace/output/terraform --project prd > execution_stage5.log 2>&1
+
+# 分类并获取修复建议
+blcli diagnose --file execution_stage5.log --format json
+
+# 查看已持久化的运行详情
+blcli runs list --status failed --format json
+blcli runs show <operation-id> --format json
+```
+
+`repair_commands` 是候选修复命令。涉及删除资源或生产环境变更时，需要先由人确认。
+查看 `runs show` 时，`apply all` 产生的 Terraform、Kubernetes、GitOps step 会包含实际子进程命令和捕获到的输出摘要。
+
 ## Troubleshooting
 
 ### Issue: Template not found
@@ -622,4 +689,3 @@ blcli apply init-repos -o myorg -d ./workspace/output
 4. **Component filtering**: Only list components you need in `args.yaml` to keep generated code minimal
 5. **Regular updates**: Use `--force-update` periodically to get latest templates
 6. **Review generated files**: Always review generated files before applying to production
-

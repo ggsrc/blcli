@@ -1,0 +1,2 @@
+kubectl apply failed:
+Unable to connect to the server: dial tcp: lookup example-cluster.internal: no such host

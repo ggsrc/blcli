@@ -61,7 +61,7 @@ func LoadFromArgs(argsData renderer.ArgsData) (BlcliConfig, error) {
 
 	// Try new format first: global and terraform at top level
 	if globalSection, ok := argsData[renderer.FieldGlobal]; ok {
-		if globalMap, ok := globalSection.(map[string]interface{}); ok {
+		if globalMap, ok := toStringMap(globalSection); ok {
 			cfg.Global = extractGlobalConfig(globalMap)
 		}
 	}
@@ -87,10 +87,17 @@ func LoadFromArgs(argsData renderer.ArgsData) (BlcliConfig, error) {
 		if tfMap != nil {
 			// Try terraform.global for global config (overrides top-level global)
 			if tfGlobal, ok := tfMap[renderer.FieldGlobal]; ok {
-				if tfGlobalMap, ok := tfGlobal.(map[string]interface{}); ok {
+				if tfGlobalMap, ok := toStringMap(tfGlobal); ok {
 					// Merge terraform.global into global config
+					baseGlobal := map[string]interface{}{}
+					if cfg.Global.Workspace != "" {
+						baseGlobal["workspace"] = cfg.Global.Workspace
+					}
+					if cfg.Global.Name != "" {
+						baseGlobal[renderer.FieldName] = cfg.Global.Name
+					}
 					mergedGlobal := renderer.MergeArgs(
-						renderer.ArgsData{renderer.FieldGlobal: cfg.Global},
+						renderer.ArgsData{renderer.FieldGlobal: baseGlobal},
 						renderer.ArgsData{renderer.FieldGlobal: tfGlobalMap},
 					)
 					if mergedGlobalMap, ok := mergedGlobal[renderer.FieldGlobal].(map[string]interface{}); ok {
@@ -206,6 +213,28 @@ func LoadFromArgs(argsData renderer.ArgsData) (BlcliConfig, error) {
 	}
 
 	return applyDefaults(cfg), nil
+}
+
+// toStringMap converts ArgsData or map types to map[string]interface{}.
+func toStringMap(v interface{}) (map[string]interface{}, bool) {
+	switch m := v.(type) {
+	case renderer.ArgsData:
+		return map[string]interface{}(m), true
+	case map[string]interface{}:
+		return m, true
+	case map[interface{}]interface{}:
+		out := make(map[string]interface{}, len(m))
+		for k, val := range m {
+			keyStr, ok := k.(string)
+			if !ok {
+				continue
+			}
+			out[keyStr] = val
+		}
+		return out, true
+	default:
+		return nil, false
+	}
 }
 
 // extractTerraformConfigFromNewFormat extracts TerraformConfig from new format (terraform.projects[])

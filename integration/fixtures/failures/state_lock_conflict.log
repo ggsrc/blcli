@@ -1,0 +1,4 @@
+kubectl failed:
+error: open /Users/example/.kube/config.lock: file exists
+
+Another kubectl process may have exited abruptly.

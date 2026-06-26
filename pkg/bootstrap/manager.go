@@ -33,6 +33,7 @@ type InitOptions struct {
 	OutputPath   string // Output directory path (overrides workspace in config if specified)
 	Quiet        bool   // If true, don't show progress updates
 	NoResume     bool   // If true, never prompt to resume an in-progress operation
+	Preview      bool   // If true, print preview only (handled by caller)
 }
 
 // DestroyOptions holds options for destroy command
