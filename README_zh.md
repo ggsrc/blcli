@@ -19,7 +19,7 @@
 </div>
 
 <!-- ADOPTION:START -->
-**采用情况（2026-06-29）：** 11 次 Release 下载 · 0 GitHub Stars · 最新版本 `v0.1.3` · [Releases](https://github.com/ggsrc/blcli/releases)
+**采用情况（2026-07-06）：** 11 次 Release 下载 · 1 GitHub Stars · 最新版本 `v0.1.3` · [Releases](https://github.com/ggsrc/blcli/releases)
 <!-- ADOPTION:END -->
 
 ---
