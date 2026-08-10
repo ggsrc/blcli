@@ -19,7 +19,7 @@ Terraform, Kubernetes, and GitOps from one `args.yaml` and a self-describing tem
 </div>
 
 <!-- ADOPTION:START -->
-**Adoption snapshot (2026-08-03):** 11 release downloads · 4 GitHub stars · latest `v0.1.3` · [Releases](https://github.com/ggsrc/blcli/releases)
+**Adoption snapshot (2026-08-10):** 11 release downloads · 4 GitHub stars · latest `v0.1.3` · [Releases](https://github.com/ggsrc/blcli/releases)
 <!-- ADOPTION:END -->
 
 ---
