@@ -76,12 +76,12 @@ var _ = Describe("InitArgs", func() {
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_URL=https://app.example.com/argocd"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_PRD_DEX_GITHUB_CLIENT_ID=XXXXXXX"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_STG_DEX_GITHUB_CLIENT_ID=XXXXXXX"))
-				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_PRD_RBAC_GROUP_PREFIX=SiriusPlatform"))
-				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_STG_RBAC_GROUP_PREFIX=SiriusPlatform"))
+				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_PRD_RBAC_GROUP_PREFIX=example-org"))
+				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_STG_RBAC_GROUP_PREFIX=example-org"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_DEX_GITHUB_CLIENT_ID=XXXXXXX"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_DEX_GITHUB_CLIENT_SECRET=XXXXXXXX"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_DEX_GITHUB_ORGS=example-org"))
-				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_RBAC_GROUP_PREFIX=SiriusPlatform"))
+				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_RBAC_GROUP_PREFIX=example-org"))
 			})
 
 			It("should generate TOML args file", func() {
