@@ -457,7 +457,7 @@ func writeInitArgsEnvFile(path string, data *ArgsConfig) error {
 			lines = append(lines, "")
 			lines = appendEnvVar(lines,
 				[]string{
-					"RBAC group prefix for ArgoCD role bindings (e.g. SiriusPlatform).",
+					"RBAC group prefix for ArgoCD role bindings (e.g. example-org).",
 					"Maps to: kubernetes.*.argocd RBACRoleBindings group prefix.",
 				},
 				fmt.Sprintf("BLCLI_ARGOCD_%s_RBAC_GROUP_PREFIX", projectKey),
