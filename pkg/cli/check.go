@@ -51,8 +51,8 @@ func NewCheckPluginCommand() *cobra.Command {
 		Short: "Check required and suggested external tools with install hints",
 		Long: `Check if required and suggested external tools are installed.
 
-必须安装 (Required): terraform, kubectl
-建议安装 (Suggested): argocd, gh, istioctl
+Required: terraform, kubectl
+Suggested: argocd, gh, istioctl
 
 Install hints are shown by platform (mac / linux) when a tool is missing.`,
 		Run: func(cmd *cobra.Command, args []string) {

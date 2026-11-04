@@ -68,7 +68,7 @@ This command supports subcommands:
   - kubernetes: Deploy Kubernetes resources to cluster
   - gitops: Deploy GitOps configurations via ArgoCD
   - all: Apply all modules in order (terraform -> kubernetes -> gitops)
-  - init-repos: 为 terraform/kubernetes/gitops 目录执行 git init、创建 GitHub 仓库并提交推送（需 Y 确认）`,
+  - init-repos: git init the terraform, kubernetes and gitops directories, create their GitHub repositories, and commit and push (asks for Y first)`,
 	}
 
 	// Add subcommands

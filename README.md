@@ -4,8 +4,6 @@
 
 **One config. Full cloud platform lifecycle.**
 
-*一份配置，走完云平台全链路。*
-
 Terraform, Kubernetes, and GitOps from one `args.yaml` and a self-describing template repo. **GCP-first today**; multi-cloud by design.
 
 [![GitHub stars](https://img.shields.io/github/stars/ggsrc/blcli?style=flat-square)](https://github.com/ggsrc/blcli/stargazers)

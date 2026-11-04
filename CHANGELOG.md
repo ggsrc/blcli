@@ -4,7 +4,7 @@ All notable changes to blcli are documented in this file.
 
 ## [2.0.0] - 2026-06-26
 
-> **版本说明：** 本 release 对应产品路线图 **v2.0**（原规划称 v1.5）。v1.0 为 Phase 1 核心闭环。
+> **Versioning:** this release is **v2.0** on the product roadmap (earlier plans called it v1.5). v1.0 was the Phase 1 core workflow.
 
 ### Added
 

@@ -107,9 +107,11 @@ func InitializeComponents(
 	}
 
 	// Normalize component names for dependency resolution.
-	// Args 中的组件名带有排序前缀（例如 "0-external-secrets-operator"），而 config.yaml 中的组件名不带前缀
-	//（例如 "external-secrets-operator"）。这里将用于依赖解析的名字统一为去前缀后的形式，
-	// 同时保留从规范名到原始名的映射，后续在读取参数和输出目录时仍然使用原始名。
+	// Component names in args carry an ordering prefix (for example
+	// "0-external-secrets-operator"); names in config.yaml do not (for example
+	// "external-secrets-operator"). Dependency resolution uses the names without
+	// the prefix, and a map from each name back to the original keeps the
+	// original name for reading args and naming output directories.
 	normalizedNames := make([]string, 0, len(componentNames))
 	logicalToOriginal := make(map[string]string, len(componentNames))
 	for _, name := range componentNames {

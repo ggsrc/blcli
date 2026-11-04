@@ -63,10 +63,10 @@ func platformLabel() string {
 // CheckTools checks required and suggested external tools, with platform-specific install hints.
 func CheckTools() {
 	fmt.Println("Checking required and suggested tools...")
-	fmt.Printf("当前平台: %s\n\n", platformLabel())
+	fmt.Printf("Platform: %s\n\n", platformLabel())
 
-	// 必须安装 (Required): terraform, kubectl
-	fmt.Println("必须安装 (Required):")
+	// Required: terraform, kubectl
+	fmt.Println("Required:")
 	requiredOK := true
 	for _, name := range []string{"terraform", "kubectl"} {
 		if ok, line := checkTool(name, toolVersionArgs(name)...); ok {
@@ -75,21 +75,21 @@ func CheckTools() {
 			fmt.Printf("  ✗ %s: not found\n", name)
 			requiredOK = false
 			if h := InstallHint(name); h != "" {
-				fmt.Printf("    安装命令: %s\n", h)
+				fmt.Printf("    install: %s\n", h)
 			}
 		}
 	}
 	fmt.Println()
 
-	// 建议安装 (Suggested): argocd, gh, istioctl
-	fmt.Println("建议安装 (Suggested):")
+	// Suggested: argocd, gh, istioctl
+	fmt.Println("Suggested:")
 	for _, name := range []string{"argocd", "gh", "istioctl"} {
 		if ok, line := checkTool(name, toolVersionArgs(name)...); ok {
 			fmt.Printf("  ✓ %s: %s\n", name, line)
 		} else {
 			fmt.Printf("  ○ %s: not found\n", name)
 			if h := InstallHint(name); h != "" {
-				fmt.Printf("    安装命令: %s\n", h)
+				fmt.Printf("    install: %s\n", h)
 			}
 		}
 	}

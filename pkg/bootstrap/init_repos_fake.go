@@ -2,27 +2,28 @@ package bootstrap
 
 import "sync"
 
-// FakeInitReposRunner 用于测试的 InitReposRunner 实现，记录每次调用且不执行真实命令。
+// FakeInitReposRunner is an InitReposRunner for tests: it records every call
+// and runs no commands.
 type FakeInitReposRunner struct {
 	mu sync.Mutex
 
-	GitInits          []string       // GitInit(dir) 的 dir 列表
-	GhRepoCreates     []GhRepoCreate // GhRepoCreate(dir, repo) 的调用
-	GitAddCommitPushs []string       // GitAddCommitPush(dir) 的 dir 列表
+	GitInits          []string       // dir of each GitInit(dir) call
+	GhRepoCreates     []GhRepoCreate // each GhRepoCreate(dir, repo) call
+	GitAddCommitPushs []string       // dir of each GitAddCommitPush(dir) call
 
-	// 可选：按调用返回错误，用于测错路径
+	// Optional errors returned by each call, to test failure paths.
 	GitInitErr          error
 	GhRepoCreateErr     error
 	GitAddCommitPushErr error
 }
 
-// GhRepoCreate 记录一次 GhRepoCreate(dir, repo) 调用。
+// GhRepoCreate records one GhRepoCreate(dir, repo) call.
 type GhRepoCreate struct {
 	Dir  string
 	Repo string
 }
 
-// GitInit 记录调用并返回 FakeInitReposRunner.GitInitErr。
+// GitInit records the call and returns FakeInitReposRunner.GitInitErr.
 func (f *FakeInitReposRunner) GitInit(dir string) error {
 	f.mu.Lock()
 	f.GitInits = append(f.GitInits, dir)
@@ -31,7 +32,7 @@ func (f *FakeInitReposRunner) GitInit(dir string) error {
 	return err
 }
 
-// GhRepoCreate 记录调用并返回 FakeInitReposRunner.GhRepoCreateErr。
+// GhRepoCreate records the call and returns FakeInitReposRunner.GhRepoCreateErr.
 func (f *FakeInitReposRunner) GhRepoCreate(dir, repo string) error {
 	f.mu.Lock()
 	f.GhRepoCreates = append(f.GhRepoCreates, GhRepoCreate{Dir: dir, Repo: repo})
@@ -40,7 +41,7 @@ func (f *FakeInitReposRunner) GhRepoCreate(dir, repo string) error {
 	return err
 }
 
-// GitAddCommitPush 记录调用并返回 FakeInitReposRunner.GitAddCommitPushErr。
+// GitAddCommitPush records the call and returns FakeInitReposRunner.GitAddCommitPushErr.
 func (f *FakeInitReposRunner) GitAddCommitPush(dir string) error {
 	f.mu.Lock()
 	f.GitAddCommitPushs = append(f.GitAddCommitPushs, dir)
