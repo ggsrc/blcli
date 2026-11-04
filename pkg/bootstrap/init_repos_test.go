@@ -53,7 +53,8 @@ func TestConfirmY(t *testing.T) {
 	}
 }
 
-// TestConfirmY_TwoReadsFromSameReader 使用共享的 bufio.Reader 时，连续两次 confirmY 都能读到下一行。
+// TestConfirmY_TwoReadsFromSameReader checks that two confirmY calls on a shared
+// bufio.Reader each read their own line.
 func TestConfirmY_TwoReadsFromSameReader(t *testing.T) {
 	r := bufio.NewReader(strings.NewReader("Y\nY\n"))
 	if !confirmY(r) {
@@ -76,7 +77,7 @@ func TestExecuteInitRepos_WithFake(t *testing.T) {
 	}
 
 	fake := &FakeInitReposRunner{}
-	// 每个目录 2 个提示，共 3 个目录 => 6 个 Y（显式多行，避免 Reader 边界问题）
+	// 2 prompts per directory, 3 directories => 6 answers, one per line.
 	stdin := strings.NewReader("Y\nY\nY\nY\nY\nY\n")
 
 	err := ExecuteInitRepos(InitReposOptions{
@@ -132,7 +133,7 @@ func TestExecuteInitRepos_UserCancelCreateRepo(t *testing.T) {
 	}
 
 	fake := &FakeInitReposRunner{}
-	stdin := strings.NewReader("N\n") // 第一个提示答 N
+	stdin := strings.NewReader("N\n") // answer N to the first prompt
 
 	err := ExecuteInitRepos(InitReposOptions{
 		WorkspaceDir: root,
@@ -144,10 +145,10 @@ func TestExecuteInitRepos_UserCancelCreateRepo(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when user answers N")
 	}
-	if !strings.Contains(err.Error(), "用户取消") {
-		t.Errorf("error = %v, want contain '用户取消'", err)
+	if !strings.Contains(err.Error(), "canceled by user") {
+		t.Errorf("error = %v, want it to contain 'canceled by user'", err)
 	}
-	// 应只调用了 GitInit，未调用 GhRepoCreate
+	// Only GitInit ran; GhRepoCreate did not.
 	if len(fake.GitInits) != 1 || len(fake.GhRepoCreates) != 0 {
 		t.Errorf("GitInits=%d GhRepoCreates=%d, want 1,0", len(fake.GitInits), len(fake.GhRepoCreates))
 	}

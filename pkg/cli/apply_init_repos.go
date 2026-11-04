@@ -20,15 +20,15 @@ var (
 func NewApplyInitReposCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init-repos",
-		Short: "为 terraform/kubernetes/gitops 目录执行 git init、创建 GitHub 仓库并提交推送",
-		Long: `对生成的三个目录（terraform、kubernetes、gitops）分别：
-1. 在该目录执行 git init（若尚未是 git 仓库）
-2. 提示确认后，使用 gh 创建对应 GitHub 仓库（属于指定 org）
-3. 提示确认后，执行 git add / commit / push
+		Short: "Create GitHub repositories for the terraform, kubernetes and gitops directories and push them",
+		Long: `For each generated directory (terraform, kubernetes, gitops):
+1. Run git init in it, unless it is already a git repository.
+2. After you confirm, create its GitHub repository under the given org with gh.
+3. After you confirm, run git add, commit and push.
 
-创建仓库与提交前需输入 Y 继续，输入 N 或其它字符则停止。
+Type Y at each prompt to continue; N or anything else stops.
 
-需要安装并登录 gh：gh auth login
+Requires gh, installed and logged in: gh auth login
 
 Examples:
   blcli apply init-repos --org github.com/someone -d ./workspace/output
@@ -36,10 +36,10 @@ Examples:
 		Example: `  blcli apply init-repos --org github.com/myorg -d ./workspace/output`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if initReposDir == "" {
-				return fmt.Errorf("工作目录必填，请使用 -d 指定（包含 terraform、kubernetes、gitops 的根目录）")
+				return fmt.Errorf("workspace directory is required: pass -d with the directory that contains terraform, kubernetes and gitops")
 			}
 			if initReposOrg == "" {
-				return fmt.Errorf("GitHub org 必填，请使用 -o/--org 指定，如 github.com/someone 或 someone")
+				return fmt.Errorf("GitHub org is required: pass -o/--org, e.g. github.com/someone or someone")
 			}
 
 			tfDir := initReposTerraformDir
@@ -66,15 +66,15 @@ Examples:
 	}
 
 	cmd.Flags().StringVarP(&initReposDir, "dir", "d", "",
-		"工作目录根路径（必填，其下包含 terraform、kubernetes、gitops 子目录）")
+		"workspace root that contains the terraform, kubernetes and gitops directories (required)")
 	cmd.Flags().StringVarP(&initReposOrg, "org", "o", "",
-		"GitHub 组织或用户名，如 github.com/someone 或 someone（必填）")
+		"GitHub organization or user, e.g. github.com/someone or someone (required)")
 	cmd.Flags().StringVar(&initReposTerraformDir, "terraform-dir", "",
-		"terraform 目录路径（默认 {workspace}/terraform）")
+		"terraform directory (default {workspace}/terraform)")
 	cmd.Flags().StringVar(&initReposKubernetesDir, "kubernetes-dir", "",
-		"kubernetes 目录路径（默认 {workspace}/kubernetes）")
+		"kubernetes directory (default {workspace}/kubernetes)")
 	cmd.Flags().StringVar(&initReposGitOpsDir, "gitops-dir", "",
-		"gitops 目录路径（默认 {workspace}/gitops）")
+		"gitops directory (default {workspace}/gitops)")
 
 	return cmd
 }

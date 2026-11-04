@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// InitReposRunner 用于执行 git/gh 的抽象，便于测试时注入 Fake。
+// InitReposRunner runs the git and gh commands; tests inject a fake.
 type InitReposRunner interface {
 	GitInit(dir string) error
 	GhRepoCreate(dir, repo string) error
@@ -27,14 +27,14 @@ type InitReposOptions struct {
 	RepoNameTerraform    string // optional override, default {org}/terraform
 	RepoNameKubernetes  string
 	RepoNameGitOps       string
-	Runner               InitReposRunner // 可选，测试时注入 Fake
-	Stdin                io.Reader       // 可选，确认提示的输入来源，默认 os.Stdin
+	Runner               InitReposRunner // optional; tests inject a fake
+	Stdin                io.Reader       // optional source of prompt answers; default os.Stdin
 }
 
 // ExecuteInitRepos runs git init, prompts to create GitHub repo, and prompts to commit/push
 // for each of terraform, kubernetes, gitops dirs that exist.
 // User must type Y to continue at each prompt; N or any other input stops the flow.
-// 测试时可通过 opts.Runner 注入 Fake、opts.Stdin 注入输入。
+// Tests can inject a fake through opts.Runner and answers through opts.Stdin.
 func ExecuteInitRepos(opts InitReposOptions) error {
 	owner := parseGitHubOwner(opts.GitHubOrg)
 	if owner == "" {
@@ -92,23 +92,23 @@ func ExecuteInitRepos(opts InitReposOptions) error {
 		}
 
 		// Prompt: create repo
-		fmt.Printf("为 %s 创建 GitHub 仓库 https://github.com/%s？[Y/n]: ", d.name, d.repo)
+		fmt.Printf("Create the GitHub repository for %s at https://github.com/%s? [Y/n]: ", d.name, d.repo)
 		if !confirmY(inBuf) {
-			return fmt.Errorf("用户取消（创建仓库）")
+			return fmt.Errorf("canceled by user: create repository")
 		}
 		if err := runner.GhRepoCreate(abs, d.repo); err != nil {
-			return fmt.Errorf("%s: 创建 GitHub 仓库: %w", d.name, err)
+			return fmt.Errorf("%s: create GitHub repository: %w", d.name, err)
 		}
 
 		// Prompt: commit and push
-		fmt.Printf("提交并推送到 %s？[Y/n]: ", d.repo)
+		fmt.Printf("Commit and push to %s? [Y/n]: ", d.repo)
 		if !confirmY(inBuf) {
-			return fmt.Errorf("用户取消（提交推送）")
+			return fmt.Errorf("canceled by user: commit and push")
 		}
 		if err := runner.GitAddCommitPush(abs); err != nil {
-			return fmt.Errorf("%s: 提交推送: %w", d.name, err)
+			return fmt.Errorf("%s: commit and push: %w", d.name, err)
 		}
-		fmt.Printf("✅ %s 完成\n", d.name)
+		fmt.Printf("✅ %s done\n", d.name)
 	}
 	fmt.Println()
 	return nil
@@ -127,7 +127,8 @@ func parseGitHubOwner(org string) string {
 }
 
 // confirmY reads one line from r; returns true only for Y/y, false otherwise.
-// 多次调用时须传入同一个 *bufio.Reader，否则会因 Scanner 预读导致后续读不到下一行。
+// Pass the same *bufio.Reader to every call: a new reader would buffer ahead
+// and later calls would miss the next line.
 func confirmY(r *bufio.Reader) bool {
 	line, err := r.ReadString('\n')
 	if err != nil && len(line) == 0 {
@@ -137,7 +138,7 @@ func confirmY(r *bufio.Reader) bool {
 	return line == "Y" || line == "YES"
 }
 
-// defaultInitReposRunner 使用真实 git/gh 命令实现 InitReposRunner。
+// defaultInitReposRunner implements InitReposRunner with the real git and gh commands.
 type defaultInitReposRunner struct{}
 
 func (defaultInitReposRunner) GitInit(dir string) error {
@@ -193,9 +194,9 @@ func commitAndPush(dir string) error {
 		os.Stderr.Write(out)
 	}
 	if err != nil {
-		// 允许 "nothing to commit"：已提交过则直接 push
+		// "nothing to commit" is fine: the directory was committed before, so just push.
 		if strings.Contains(string(out), "nothing to commit") || strings.Contains(string(out), "no changes added") {
-			// 继续执行 push
+			// continue to push
 		} else {
 			return err
 		}
