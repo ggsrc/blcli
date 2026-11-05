@@ -67,10 +67,9 @@ func ExtractProjectComponentArgs(projectArgs renderer.ArgsData, componentName st
 			// componentData should be the parameters map directly (from mergeProjectArgsFromNewFormat)
 			componentParams := toMapStringInterface(componentData)
 			if componentParams != nil {
-				// Flatten component parameters to top level
-				for k, v := range componentParams {
-					result[k] = v
-				}
+				// Flatten component parameters to top level, readable under their
+				// own key, PascalCase and lowerCamelCase
+				renderer.AddArgAliases(result, componentParams)
 			}
 		}
 	}
@@ -99,10 +98,9 @@ func ExtractComponentArgs(templateArgs renderer.ArgsData, componentName string) 
 		if componentsMap, ok := components.(map[string]interface{}); ok {
 			if componentData, ok := componentsMap[componentName]; ok {
 				if componentMap, ok := componentData.(map[string]interface{}); ok {
-					// Flatten component data to top level
-					for k, v := range componentMap {
-						result[k] = v
-					}
+					// Flatten component data to top level, readable under its own
+					// key, PascalCase and lowerCamelCase
+					renderer.AddArgAliases(result, componentMap)
 				}
 			}
 		}
@@ -432,11 +430,10 @@ func ExtractInitItemArgsForComponent(templateArgs renderer.ArgsData, argsPaths [
 						if components, ok := initMap[renderer.FieldComponents]; ok {
 							if componentsMap := toMapStringInterface(components); componentsMap != nil {
 								if componentData, ok := componentsMap[componentName]; ok {
-									// Flatten component parameters to top level
+									// Flatten component parameters to top level, readable under
+									// their own key, PascalCase and lowerCamelCase
 									if componentParams := toMapStringInterface(componentData); componentParams != nil {
-										for k, v := range componentParams {
-											result[k] = v
-										}
+										renderer.AddArgAliases(result, componentParams)
 									}
 								}
 							}

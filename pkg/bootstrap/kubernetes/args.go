@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"regexp"
-	"strings"
 
 	"blcli/pkg/renderer"
 	"blcli/pkg/template"
@@ -19,65 +18,6 @@ func normalizeComponentLookupName(name string) string {
 
 func componentNamesMatch(actualName, targetName string) bool {
 	return normalizeComponentLookupName(actualName) == normalizeComponentLookupName(targetName)
-}
-
-// toCamelCase converts kebab-case or snake_case to CamelCase
-// Handles common abbreviations like ID, URL, API, etc. by keeping them uppercase
-// Example: "project-id" -> "ProjectID", "secret-manager-service-account-email" -> "SecretManagerServiceAccountEmail"
-func toCamelCase(s string) string {
-	if s == "" {
-		return s
-	}
-
-	// Common abbreviations that should be kept uppercase
-	abbreviations := map[string]string{
-		"id":     "ID",
-		"url":    "URL",
-		"api":    "API",
-		"uid":    "UID",
-		"gid":    "GID",
-		"pid":    "PID",
-		"ip":     "IP",
-		"dns":    "DNS",
-		"tls":    "TLS",
-		"ssl":    "SSL",
-		"http":   "HTTP",
-		"https":  "HTTPS",
-		"json":   "JSON",
-		"yaml":   "YAML",
-		"xml":    "XML",
-		"csv":    "CSV",
-		"jwt":    "JWT",
-		"oauth":  "OAuth",
-		"argocd": "ArgoCD",
-		"saml":   "SAML",
-		"aws":    "AWS",
-		"gcp":    "GCP",
-		"azure":  "Azure",
-		"k8s":    "K8s",
-		"gke":    "GKE",
-		"eks":    "EKS",
-		"aks":    "AKS",
-	}
-
-	parts := strings.FieldsFunc(s, func(r rune) bool {
-		return r == '-' || r == '_'
-	})
-
-	result := ""
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-		partLower := strings.ToLower(part)
-		if abbrev, ok := abbreviations[partLower]; ok {
-			result += abbrev
-		} else {
-			result += strings.ToUpper(part[:1]) + part[1:]
-		}
-	}
-
-	return result
 }
 
 // ExtractComponentArgs extracts component-specific args and flattens them to top level
@@ -97,8 +37,10 @@ func ExtractComponentArgs(templateArgs renderer.ArgsData, componentName string) 
 	}
 
 	// Prefer already-scoped project components when present.
-	// GetProjectArgs(project) populates result["components"] with that project's component list,
-	// so we should not fall back to scanning kubernetes.projects across all projects first.
+	// GetProjectArgs(project) populates result["components"] with that project's component list.
+	// A component missing from that list (for example one pulled in only as a dependency) gets
+	// no parameters, so it renders with its args.yaml defaults instead of borrowing the
+	// parameters another project set for the same component.
 	if components, ok := templateArgs[renderer.FieldComponents]; ok {
 		if componentsList, ok := components.([]interface{}); ok {
 			for _, compItem := range componentsList {
@@ -110,22 +52,14 @@ func ExtractComponentArgs(templateArgs renderer.ArgsData, componentName string) 
 					if compNameStr, ok := compName.(string); ok && componentNamesMatch(compNameStr, componentName) {
 						if compParams, ok := compMap["parameters"]; ok {
 							if paramsMap := toMapStringInterface(compParams); paramsMap != nil {
-								for k, v := range paramsMap {
-									result[k] = v
-									camelKey := toCamelCase(k)
-									if camelKey != k {
-										if _, exists := paramsMap[camelKey]; exists {
-											continue
-										}
-										result[camelKey] = v
-									}
-								}
+								renderer.AddArgAliases(result, paramsMap)
 							}
 						}
 						return result
 					}
 				}
 			}
+			return result
 		}
 	}
 
@@ -154,19 +88,9 @@ func ExtractComponentArgs(templateArgs renderer.ArgsData, componentName string) 
 											// Found the component, extract parameters
 											if compParams, ok := compMap["parameters"]; ok {
 												if paramsMap := toMapStringInterface(compParams); paramsMap != nil {
-													// Flatten component parameters to top level
-													// Convert kebab-case keys to CamelCase for template compatibility
-													for k, v := range paramsMap {
-														// Add both original key and camelCase key for compatibility
-														result[k] = v
-														camelKey := toCamelCase(k)
-														if camelKey != k {
-															if _, exists := paramsMap[camelKey]; exists {
-																continue
-															}
-															result[camelKey] = v
-														}
-													}
+													// Flatten component parameters to top level, readable under
+													// their own key, PascalCase and lowerCamelCase
+													renderer.AddArgAliases(result, paramsMap)
 												}
 											}
 											return result
@@ -186,18 +110,9 @@ func ExtractComponentArgs(templateArgs renderer.ArgsData, componentName string) 
 		if componentsMap, ok := components.(map[string]interface{}); ok {
 			if componentData, ok := componentsMap[componentName]; ok {
 				if componentMap, ok := componentData.(map[string]interface{}); ok {
-					// Flatten component data to top level
-					// Convert kebab-case keys to CamelCase for template compatibility
-					for k, v := range componentMap {
-						result[k] = v
-						camelKey := toCamelCase(k)
-						if camelKey != k {
-							if _, exists := componentMap[camelKey]; exists {
-								continue
-							}
-							result[camelKey] = v
-						}
-					}
+					// Flatten component data to top level, readable under its own key,
+					// PascalCase and lowerCamelCase
+					renderer.AddArgAliases(result, componentMap)
 				}
 			}
 		}
@@ -246,26 +161,11 @@ func LoadComponentParameterDefaults(templateLoader *template.Loader, component t
 }
 
 // MergeComponentArgsWithDefaults overlays explicit component args on top of component defaults
-// and ensures templates can access both original and CamelCase aliases.
+// (the args.yaml default/example values). Args and defaults are matched regardless of spelling,
+// so `image-tag` in args replaces the `imageTag` default, and every spelling a template may use
+// (original key, PascalCase, lowerCamelCase) carries the args value.
 func MergeComponentArgsWithDefaults(componentArgs renderer.ArgsData, defaults map[string]interface{}) renderer.ArgsData {
-	merged := make(renderer.ArgsData)
-
-	for k, v := range componentArgs {
-		merged[k] = v
-	}
-
-	for k, v := range defaults {
-		if _, exists := merged[k]; !exists {
-			merged[k] = v
-		}
-
-		camelKey := toCamelCase(k)
-		if _, exists := merged[camelKey]; !exists {
-			merged[camelKey] = v
-		}
-	}
-
-	return merged
+	return renderer.ArgsData(renderer.MergeArgDefaults(componentArgs, defaults))
 }
 
 // GetAvailableInitComponents gets available components from args

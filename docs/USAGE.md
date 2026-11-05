@@ -387,6 +387,46 @@ terraform {
 }
 ```
 
+When the same key is set at several levels, the more specific level always wins, in this
+order (lowest first): repository `global`, `terraform.global`, project `global`, component
+`parameters`.
+
+### Parameter Names in Templates
+
+Args files and `default.yaml` usually spell parameters in kebab-case (`hosted-domain`) or
+snake_case (`project_id`), while templates read PascalCase or lowerCamelCase. blcli makes every
+component parameter readable under its own key and under these spellings:
+
+| Key in args | Also readable in templates as |
+|-------------|-------------------------------|
+| `hosted-domain` | `.HostedDomain`, `.hostedDomain` |
+| `root-url` | `.RootURL`, `.rootUrl`, `.rootURL` |
+| `project_id` | `.ProjectID`, `.projectId`, `.projectID` |
+| `imageTag` | `.ImageTag` |
+| `IstioVersion` | `.istioVersion` |
+
+PascalCase keeps common abbreviations in upper case (`ID`, `URL`, `API`, `ArgoCD`, ...). A key
+that is spelled out in the args file always keeps its own value; aliases only fill in the other
+spellings.
+
+For Kubernetes components, the `default`/`example` values in the component's `args.yaml` fill in
+parameters the args file does not set. A value set in the args file replaces the args.yaml default
+whatever its spelling, so `image-tag: v2.0.1` in args replaces `imageTag: ""` from args.yaml.
+A component that a project only pulls in as a dependency (it is not listed under that project's
+`components`) renders with its args.yaml defaults; it does not borrow parameters that another
+project set for the same component.
+
+### Template Functions
+
+Templates are Go `text/template` files with three extra functions:
+
+- `default`: Sprig argument order. `{{ default "d" .Value }}` and `{{ .Value | default "d" }}`
+  both return `.Value` unless it is unset, `nil` or the empty string, in which case they return
+  `"d"`. An explicit `false` or `0` is kept, so `enabled: false` in args survives
+  `{{ .Enabled | default true }}`.
+- `quote`: wraps a value in double quotes, escaping quotes inside.
+- `replace`: `{{ replace .name "_" "-" }}` replaces every occurrence.
+
 ### Init Components Configuration
 
 Init components are configured under `terraform.init.components`:

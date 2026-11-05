@@ -43,6 +43,91 @@ var _ = Describe("Kubernetes Args", func() {
 			Expect(args["version"]).To(Equal("1.0.0"))
 		})
 
+		It("should expose kebab-case parameters as original, PascalCase and lowerCamelCase keys", func() {
+			templateArgs := renderer.ArgsData{
+				"kubernetes": map[string]interface{}{
+					"projects": []interface{}{
+						map[string]interface{}{
+							"name": "corp",
+							"components": []interface{}{
+								map[string]interface{}{
+									"name": "4-grafana",
+									"parameters": map[string]interface{}{
+										"hosted-domain":    "corp.example",
+										"root-url":         "https://grafana.corp.example",
+										"remote-write-url": "http://vminsert:8480",
+										"argocd-url":       "https://argocd.corp.example",
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			args := kubernetes.ExtractComponentArgs(templateArgs, "grafana")
+			Expect(args).To(HaveKeyWithValue("hosted-domain", "corp.example"))
+			Expect(args).To(HaveKeyWithValue("HostedDomain", "corp.example"))
+			Expect(args).To(HaveKeyWithValue("hostedDomain", "corp.example"))
+			Expect(args).To(HaveKeyWithValue("RootURL", "https://grafana.corp.example"))
+			Expect(args).To(HaveKeyWithValue("rootUrl", "https://grafana.corp.example"))
+			Expect(args).To(HaveKeyWithValue("remoteWriteUrl", "http://vminsert:8480"))
+			Expect(args).To(HaveKeyWithValue("ArgoCDURL", "https://argocd.corp.example"))
+			Expect(args).To(HaveKeyWithValue("argocdURL", "https://argocd.corp.example"))
+		})
+
+		It("should not borrow another project's parameters for a component the project does not list", func() {
+			templateArgs := renderer.ArgsData{
+				"kubernetes": map[string]interface{}{
+					"projects": []interface{}{
+						map[string]interface{}{
+							"name": "prd",
+							"components": []interface{}{
+								map[string]interface{}{
+									"name":       "0-external-secrets-operator",
+									"parameters": map[string]interface{}{"namespace": "eso-prd"},
+								},
+							},
+						},
+						map[string]interface{}{
+							"name": "corp",
+							"components": []interface{}{
+								map[string]interface{}{
+									"name":       "0-external-secrets",
+									"parameters": map[string]interface{}{"namespace": "external-secrets"},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// corp pulls in external-secrets-operator only as a dependency.
+			corpArgs := kubernetes.ExtractComponentArgs(kubernetes.GetProjectArgs(templateArgs, "corp"), "external-secrets-operator")
+			Expect(corpArgs).NotTo(HaveKey("namespace"))
+
+			prdArgs := kubernetes.ExtractComponentArgs(kubernetes.GetProjectArgs(templateArgs, "prd"), "external-secrets-operator")
+			Expect(prdArgs).To(HaveKeyWithValue("namespace", "eso-prd"))
+		})
+
+		It("should keep an explicitly spelled key over an alias", func() {
+			templateArgs := renderer.ArgsData{
+				"components": []interface{}{
+					map[string]interface{}{
+						"name": "istio",
+						"parameters": map[string]interface{}{
+							"istio-version": "1.31.3",
+							"IstioVersion":  "1.30.7",
+						},
+					},
+				},
+			}
+
+			args := kubernetes.ExtractComponentArgs(templateArgs, "istio")
+			Expect(args).To(HaveKeyWithValue("IstioVersion", "1.30.7"))
+			Expect(args).To(HaveKeyWithValue("istio-version", "1.31.3"))
+		})
+
 		It("should return empty args if component not found", func() {
 			templateArgs := renderer.ArgsData{
 				"kubernetes": map[string]interface{}{
@@ -53,6 +138,46 @@ var _ = Describe("Kubernetes Args", func() {
 			args := kubernetes.ExtractComponentArgs(templateArgs, "non-existent")
 			Expect(args).NotTo(BeNil())
 			Expect(len(args)).To(BeNumerically("<=", 1)) // Only global might be present
+		})
+	})
+
+	Describe("MergeComponentArgsWithDefaults", func() {
+		It("should let a kebab-case arg replace a lowerCamelCase args.yaml default", func() {
+			// default.yaml sets image-tag; args.yaml declares imageTag with default "";
+			// the template reads .imageTag.
+			templateArgs := renderer.ArgsData{
+				"components": []interface{}{
+					map[string]interface{}{
+						"name": "0-external-secrets-operator",
+						"parameters": map[string]interface{}{
+							"image-tag":     "v2.0.1",
+							"replica-count": 2,
+						},
+					},
+				},
+			}
+			defaults := map[string]interface{}{
+				"imageTag":     "",
+				"replicaCount": 1,
+				"namespace":    "external-secrets",
+			}
+
+			args := kubernetes.MergeComponentArgsWithDefaults(
+				kubernetes.ExtractComponentArgs(templateArgs, "external-secrets-operator"), defaults)
+			Expect(args).To(HaveKeyWithValue("imageTag", "v2.0.1"))
+			Expect(args).To(HaveKeyWithValue("ImageTag", "v2.0.1"))
+			Expect(args).To(HaveKeyWithValue("replicaCount", 2))
+			Expect(args).To(HaveKeyWithValue("namespace", "external-secrets"))
+			Expect(args).To(HaveKeyWithValue("Namespace", "external-secrets"))
+		})
+
+		It("should keep an explicit false over a true default", func() {
+			args := kubernetes.MergeComponentArgsWithDefaults(
+				renderer.ArgsData{"auth-enabled": false, "authEnabled": false},
+				map[string]interface{}{"authEnabled": true},
+			)
+			Expect(args).To(HaveKeyWithValue("authEnabled", false))
+			Expect(args).To(HaveKeyWithValue("AuthEnabled", false))
 		})
 	})
 

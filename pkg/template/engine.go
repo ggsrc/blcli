@@ -108,37 +108,27 @@ func RenderWithArgs(tmplStr string, data interface{}, args renderer.ArgsData) (s
 		}
 	}
 
-	// Merge args into dataMap (args take precedence for conflicting keys)
-	// Also flatten global and terraform.global to top level for easier template access
+	// Merge args into dataMap. Layers are applied in a fixed order, lowest
+	// precedence first, so a key present in two layers always resolves the same way:
+	//  1. data (backward compatibility)
+	//  2. args.global flattened to top level (it may already be merged from several sources)
+	//  3. args.terraform.global flattened to top level (more specific than global)
+	//  4. top-level args keys: component parameters and values the caller has already
+	//     flattened with their own precedence
+	if globalMap := toMapStringInterface(args[renderer.FieldGlobal]); globalMap != nil {
+		for gk, gv := range globalMap {
+			dataMap[gk] = gv
+		}
+	}
+	if terraformMap := toMapStringInterface(args[renderer.FieldTerraform]); terraformMap != nil {
+		if globalMap := toMapStringInterface(terraformMap[renderer.FieldGlobal]); globalMap != nil {
+			for gk, gv := range globalMap {
+				dataMap[gk] = gv
+			}
+		}
+	}
 	for k, v := range args {
 		dataMap[k] = v
-
-		// Flatten global to top level (args.global may already be merged from multiple sources)
-		if k == renderer.FieldGlobal {
-			globalMap := toMapStringInterface(v)
-			if globalMap != nil {
-				for gk, gv := range globalMap {
-					dataMap[gk] = gv
-				}
-			}
-		}
-
-		// Flatten terraform.global to top level.
-		// terraform.global is more specific than top-level global and should override
-		// conflicting keys during rendering.
-		if k == renderer.FieldTerraform {
-			terraformMap := toMapStringInterface(v)
-			if terraformMap != nil {
-				if tfGlobal, ok := terraformMap[renderer.FieldGlobal]; ok {
-					globalMap := toMapStringInterface(tfGlobal)
-					if globalMap != nil {
-						for gk, gv := range globalMap {
-							dataMap[gk] = gv
-						}
-					}
-				}
-			}
-		}
 	}
 
 	return Render(tmplStr, dataMap)

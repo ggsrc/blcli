@@ -126,7 +126,17 @@ func initializeProjectsInternal(terraformConfig *template.TerraformConfig, templ
 				for k, v := range projectArgs {
 					mergedArgs[k] = v
 				}
-				// Flatten component-specific parameters to top level
+				// Flatten the project global (top-level global < terraform.global <
+				// project global, already merged by GetProjectArgs) so that project
+				// values win over terraform.global, which RenderWithArgs flattens too.
+				if projectGlobal := toMapStringInterface(projectArgs[renderer.FieldGlobal]); projectGlobal != nil {
+					for k, v := range projectGlobal {
+						if _, exists := mergedArgs[k]; !exists {
+							mergedArgs[k] = v
+						}
+					}
+				}
+				// Flatten component-specific parameters to top level (highest precedence)
 				for k, v := range componentArgs {
 					mergedArgs[k] = v
 				}

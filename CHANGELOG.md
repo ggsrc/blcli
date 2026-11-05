@@ -2,6 +2,30 @@
 
 All notable changes to blcli are documented in this file.
 
+## [Unreleased]
+
+> **Rendered output changes.** Args that blcli used to ignore now take effect. Re-render with
+> `blcli init` into a scratch directory, diff the result against what is deployed, and review every
+> difference before applying (for example a version, namespace or Helm release name that now
+> follows your args instead of the template literal).
+
+### Fixed
+
+- **Template `default` function**: uses Sprig argument order, so `{{ default "d" .v }}` and
+  `{{ .v | default "d" }}` return `.v` when it is set. It used to return the literal every time.
+  Only unset, `nil` and `""` count as empty; an explicit `false` or `0` is kept.
+- **Arg names**: component parameters are readable under their own key, PascalCase and
+  lowerCamelCase (`hosted-domain` -> `.HostedDomain`, `.hostedDomain`), for Kubernetes components,
+  Terraform components and init items, and GitOps app parameters. kebab-case args from
+  `default.yaml` (for example `image-tag`, `remote-write-url`) used to miss lowerCamelCase template
+  variables, and the args.yaml default was used instead.
+- **Component defaults**: an args value replaces the args.yaml default whatever its spelling.
+- **Dependency components**: a component that a project pulls in only as a dependency renders with
+  its args.yaml defaults instead of borrowing another project's parameters.
+- **Render precedence**: when a key is set at several levels, the more specific level always wins
+  (repository global < `terraform.global` < project global < component parameters). The result used
+  to depend on Go map iteration order.
+
 ## [2.0.0] - 2026-06-26
 
 > **Versioning:** this release is **v2.0** on the product roadmap (earlier plans called it v1.5). v1.0 was the Phase 1 core workflow.

@@ -133,3 +133,32 @@ func TestRenderWithArgs_default(t *testing.T) {
 		t.Errorf("RenderWithArgs() = %q, want %q", got, want)
 	}
 }
+
+func TestRenderWithArgs_precedence(t *testing.T) {
+	args := map[string]interface{}{
+		"global": map[string]interface{}{
+			"Region":  "from-global",
+			"Project": "from-global",
+			"Name":    "from-global",
+		},
+		"terraform": map[string]interface{}{
+			"global": map[string]interface{}{
+				"Region":  "from-terraform-global",
+				"Project": "from-terraform-global",
+			},
+		},
+		"Project": "from-component",
+	}
+	data := map[string]interface{}{"Name": "from-data", "Extra": "from-data"}
+	want := "from-terraform-global from-component from-global from-data"
+	// Go randomizes map iteration; repeat to catch order-dependent results.
+	for i := 0; i < 50; i++ {
+		got, err := RenderWithArgs(`{{ .Region }} {{ .Project }} {{ .Name }} {{ .Extra }}`, data, args)
+		if err != nil {
+			t.Fatalf("RenderWithArgs() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("RenderWithArgs() = %q, want %q", got, want)
+		}
+	}
+}
