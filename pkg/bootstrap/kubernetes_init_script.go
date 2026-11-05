@@ -48,7 +48,7 @@ func runKubernetesInitScript(templateLoader *template.Loader, templateArgs rende
 		return fmt.Errorf("chmod kubernetes init script: %w", err)
 	}
 
-	// Keys go to <workspace>/.blcli-keys (or $BLCLI_KEYS_DIR), never inside the kubernetes
+	// Keys go to <workspace>/keys (or $BLCLI_KEYS_DIR), never inside the kubernetes
 	// directory: `apply init-repos` commits everything in that directory.
 	keysDir, err := KeysDirForWorkspace(workspace)
 	if err != nil {

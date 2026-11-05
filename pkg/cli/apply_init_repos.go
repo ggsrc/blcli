@@ -28,7 +28,7 @@ func NewApplyInitReposCommand() *cobra.Command {
 
 Before any of this, every directory is checked for private-key material (PEM/OpenSSH private
 keys, id_*, *.pem, *.key, *.p12, *.pfx, keys/ directories). If any is found, nothing is run:
-move those files out of the directory (blcli keeps generated keys in {workspace}/.blcli-keys)
+move those files out of the directory (blcli keeps generated keys in {workspace}/keys)
 and run the command again.
 
 Type Y at each prompt to continue; N or anything else stops.

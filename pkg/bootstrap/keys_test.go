@@ -18,7 +18,7 @@ func TestKeysDirForWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(root, ".blcli-keys"); got != want {
+	if want := filepath.Join(root, "keys"); got != want {
 		t.Errorf("KeysDirForWorkspace() = %q, want %q", got, want)
 	}
 
@@ -46,7 +46,7 @@ func TestResolveApplyKeysDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(root, ".blcli-keys"); got != want {
+	if want := filepath.Join(root, "keys"); got != want {
 		t.Errorf("resolveApplyKeysDir() = %q, want %q", got, want)
 	}
 
@@ -64,12 +64,12 @@ func TestResolveApplyKeysDir(t *testing.T) {
 	}
 
 	// Once the workspace keys dir holds keys, it wins.
-	writeTestFile(t, filepath.Join(root, ".blcli-keys", "argocd_github"), testPrivateKey)
+	writeTestFile(t, filepath.Join(root, "keys", "argocd_github"), testPrivateKey)
 	got, err = resolveApplyKeysDir(k8sDir, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(root, ".blcli-keys"); got != want {
+	if want := filepath.Join(root, "keys"); got != want {
 		t.Errorf("resolveApplyKeysDir() = %q, want %q", got, want)
 	}
 }
@@ -77,7 +77,7 @@ func TestResolveApplyKeysDir(t *testing.T) {
 func TestMigrateLegacyKeysDirKeepsBothWhenNewDirHasKeys(t *testing.T) {
 	root := t.TempDir()
 	k8sDir := filepath.Join(root, "kubernetes")
-	keysDir := filepath.Join(root, ".blcli-keys")
+	keysDir := filepath.Join(root, "keys")
 	writeTestFile(t, filepath.Join(k8sDir, "keys", "argocd_github"), "old")
 	writeTestFile(t, filepath.Join(keysDir, "argocd_github"), "new")
 
@@ -98,7 +98,7 @@ func TestMigrateLegacyKeysDirKeepsBothWhenNewDirHasKeys(t *testing.T) {
 
 func TestApplyCustomInstallGetsKeysDir(t *testing.T) {
 	componentDir := t.TempDir()
-	keysDir := filepath.Join(t.TempDir(), ".blcli-keys")
+	keysDir := filepath.Join(t.TempDir(), "keys")
 
 	var env []string
 	withFakeExternalExecutor(t, func(ctx context.Context, spec ExternalCommandSpec, mode externalCommandOutputMode) (ExternalCommandResult, error) {

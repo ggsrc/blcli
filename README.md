@@ -163,7 +163,7 @@ blcli check
   - `stg/hello-world-2/`
   - `prd/hello-world/`
 - An SSH deploy key (`argocd_github.pub`) added to that repository as a **read-only** deploy key.
-  `blcli init` generates the key pair in `<workspace>/.blcli-keys/` (mode 0700, set `BLCLI_KEYS_DIR`
+  `blcli init` generates the key pair in `<workspace>/keys/` (mode 0700, set `BLCLI_KEYS_DIR`
   to use another directory), next to and never inside the `terraform`, `kubernetes` and `gitops`
   directories. Older blcli versions wrote it to `<workspace>/kubernetes/keys/`; `blcli init` moves
   it out. If that directory was ever committed or pushed, treat the key as leaked and rotate it.

@@ -39,7 +39,7 @@ func TestBootstrapKubernetesRunsInitScript(t *testing.T) {
 		t.Fatalf("BootstrapKubernetes returned error: %v", err)
 	}
 
-	markerPath := filepath.Join(workspaceDir, ".blcli-keys", "marker.txt")
+	markerPath := filepath.Join(workspaceDir, "keys", "marker.txt")
 	content, err := os.ReadFile(markerPath)
 	if err != nil {
 		t.Fatalf("read marker: %v", err)
@@ -50,15 +50,15 @@ func TestBootstrapKubernetesRunsInitScript(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(workspaceDir, "kubernetes", "keys")); !os.IsNotExist(err) {
 		t.Fatalf("keys must not be created inside the kubernetes dir, stat err = %v", err)
 	}
-	info, err := os.Stat(filepath.Join(workspaceDir, ".blcli-keys"))
+	info, err := os.Stat(filepath.Join(workspaceDir, "keys"))
 	if err != nil {
 		t.Fatalf("stat keys dir: %v", err)
 	}
 	if perm := info.Mode().Perm(); perm != 0o700 {
 		t.Fatalf("keys dir mode = %o, want 700", perm)
 	}
-	ignore, err := os.ReadFile(filepath.Join(workspaceDir, ".blcli-keys", ".gitignore"))
-	if err != nil || !strings.Contains(string(ignore), "\n*\n") {
+	ignore, err := os.ReadFile(filepath.Join(workspaceDir, "keys", ".gitignore"))
+	if err != nil || string(ignore) != "*\n" {
 		t.Fatalf("keys dir .gitignore = %q, %v; want it to ignore everything", ignore, err)
 	}
 	kubeIgnore, err := os.ReadFile(filepath.Join(workspaceDir, "kubernetes", ".gitignore"))
@@ -106,7 +106,7 @@ func TestBootstrapKubernetesRunsInitScriptWithRelativeWorkspace(t *testing.T) {
 		t.Fatalf("BootstrapKubernetes returned error: %v", err)
 	}
 
-	markerPath := filepath.Join(tmpDir, "workspace", ".blcli-keys", "marker.txt")
+	markerPath := filepath.Join(tmpDir, "workspace", "keys", "marker.txt")
 	content, err := os.ReadFile(markerPath)
 	if err != nil {
 		t.Fatalf("read marker: %v", err)
@@ -169,11 +169,11 @@ func TestBootstrapKubernetesMovesLegacyKeysOutOfKubernetesDir(t *testing.T) {
 		t.Fatalf("BootstrapKubernetes returned error: %v", err)
 	}
 
-	moved, err := os.ReadFile(filepath.Join(workspaceDir, ".blcli-keys", "argocd_github"))
+	moved, err := os.ReadFile(filepath.Join(workspaceDir, "keys", "argocd_github"))
 	if err != nil || string(moved) != privateKey {
 		t.Fatalf("legacy private key not moved: %q, %v", moved, err)
 	}
-	if _, err := os.Stat(filepath.Join(workspaceDir, ".blcli-keys", "argocd_github.pub")); err != nil {
+	if _, err := os.Stat(filepath.Join(workspaceDir, "keys", "argocd_github.pub")); err != nil {
 		t.Fatalf("legacy public key not moved: %v", err)
 	}
 	if _, err := os.Stat(legacyDir); !os.IsNotExist(err) {

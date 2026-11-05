@@ -221,7 +221,7 @@ func TestExecuteInitRepos_RefusesPrivateKeyMaterial(t *testing.T) {
 				t.Fatal("expected ExecuteInitRepos to refuse private-key material")
 			}
 			msg := err.Error()
-			for _, want := range []string{"refusing to commit", base, filepath.FromSlash(tt.wantPath), filepath.Join(root, ".blcli-keys"), "rotate"} {
+			for _, want := range []string{"refusing to commit", base, filepath.FromSlash(tt.wantPath), filepath.Join(root, "keys"), "rotate"} {
 				if !strings.Contains(msg, want) {
 					t.Errorf("error %q does not mention %q", msg, want)
 				}
@@ -239,7 +239,7 @@ func TestExecuteInitRepos_AllowsPublicKeysAndSkipsGitDir(t *testing.T) {
 	writeTestFile(t, filepath.Join(k8sDir, "keys", "argocd_github.pub"), "ssh-ed25519 AAAA argocd-github\n")
 	writeTestFile(t, filepath.Join(k8sDir, ".git", "objects", "id_rsa"), testPrivateKey)
 	writeTestFile(t, filepath.Join(k8sDir, "prd", "2-argocd", "github-ssh-sealed-secret.yaml"), "kind: SealedSecret\nencryptedData:\n  sshPrivateKey: AgB4\n")
-	writeTestFile(t, filepath.Join(root, ".blcli-keys", "argocd_github"), testPrivateKey)
+	writeTestFile(t, filepath.Join(root, "keys", "argocd_github"), testPrivateKey)
 
 	fake := &FakeInitReposRunner{}
 	err := ExecuteInitRepos(InitReposOptions{

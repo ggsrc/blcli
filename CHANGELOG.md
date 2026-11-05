@@ -23,7 +23,7 @@ All notable changes to blcli are documented in this file.
 - **Dependency components**: a component that a project pulls in only as a dependency renders with
   its args.yaml defaults instead of borrowing another project's parameters.
 - **Generated private keys stay out of git**: `blcli init` gives `kubernetes/init.sh`
-  `BLCLI_KEYS_DIR=<workspace>/.blcli-keys` (mode 0700, ignored by git) instead of
+  `BLCLI_KEYS_DIR=<workspace>/keys` (mode 0700, ignored by git) instead of
   `<workspace>/kubernetes/keys`, moves keys from that old location, and adds `keys/` to
   `kubernetes/.gitignore`. `apply kubernetes` passes the directory to custom install scripts as
   `BLCLI_KEYS_DIR` and `ARGOCD_KEYS_DIR`. If `kubernetes/keys` was ever committed or pushed, rotate
