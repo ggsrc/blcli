@@ -32,6 +32,10 @@ type ApplyKubernetesOptions struct {
 	Wait                    bool
 	ComponentWaitAfterApply time.Duration // Wait duration after each component apply before next (e.g. 30s). 0 = no wait.
 	ProgressTracker         *ProgressTracker
+	// KeysDir is the directory with generated private keys (for example the ArgoCD deploy
+	// key). Custom install scripts get it as BLCLI_KEYS_DIR (and ARGOCD_KEYS_DIR unless that
+	// is already set). Empty means: resolve it from KubernetesDir, see resolveApplyKeysDir.
+	KeysDir string
 }
 
 // ApplyGitOpsOptions holds options for apply gitops command

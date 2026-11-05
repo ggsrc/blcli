@@ -22,6 +22,16 @@ All notable changes to blcli are documented in this file.
 - **Component defaults**: an args value replaces the args.yaml default whatever its spelling.
 - **Dependency components**: a component that a project pulls in only as a dependency renders with
   its args.yaml defaults instead of borrowing another project's parameters.
+- **Generated private keys stay out of git**: `blcli init` gives `kubernetes/init.sh`
+  `BLCLI_KEYS_DIR=<workspace>/.blcli-keys` (mode 0700, ignored by git) instead of
+  `<workspace>/kubernetes/keys`, moves keys from that old location, and adds `keys/` to
+  `kubernetes/.gitignore`. `apply kubernetes` passes the directory to custom install scripts as
+  `BLCLI_KEYS_DIR` and `ARGOCD_KEYS_DIR`. If `kubernetes/keys` was ever committed or pushed, rotate
+  the ArgoCD deploy key.
+- **`apply init-repos` refuses to commit private keys**: before any git or `gh` command it scans
+  the terraform, kubernetes and gitops directories for private-key material (PEM/OpenSSH private key
+  headers, `id_*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `keys/` directories) and stops with the list
+  of findings.
 - **Render precedence**: when a key is set at several levels, the more specific level always wins
   (repository global < `terraform.global` < project global < component parameters). The result used
   to depend on Go map iteration order.

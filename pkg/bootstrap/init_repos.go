@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,16 +20,16 @@ type InitReposRunner interface {
 
 // InitReposOptions holds options for apply init-repos command.
 type InitReposOptions struct {
-	WorkspaceDir         string // -d, root containing terraform/ kubernetes/ gitops/
-	TerraformDir         string
-	KubernetesDir        string
-	GitOpsDir            string
-	GitHubOrg            string // e.g. someone or github.com/someone
-	RepoNameTerraform    string // optional override, default {org}/terraform
-	RepoNameKubernetes  string
-	RepoNameGitOps       string
-	Runner               InitReposRunner // optional; tests inject a fake
-	Stdin                io.Reader       // optional source of prompt answers; default os.Stdin
+	WorkspaceDir       string // -d, root containing terraform/ kubernetes/ gitops/
+	TerraformDir       string
+	KubernetesDir      string
+	GitOpsDir          string
+	GitHubOrg          string // e.g. someone or github.com/someone
+	RepoNameTerraform  string // optional override, default {org}/terraform
+	RepoNameKubernetes string
+	RepoNameGitOps     string
+	Runner             InitReposRunner // optional; tests inject a fake
+	Stdin              io.Reader       // optional source of prompt answers; default os.Stdin
 }
 
 // ExecuteInitRepos runs git init, prompts to create GitHub repo, and prompts to commit/push
@@ -68,6 +69,13 @@ func ExecuteInitRepos(opts InitReposOptions) error {
 	}
 	if opts.RepoNameGitOps != "" {
 		dirs[2].repo = opts.RepoNameGitOps
+	}
+
+	// Check every directory before touching git or GitHub: `git add .` would commit any
+	// private key left inside it (older blcli versions generated the ArgoCD deploy key in
+	// <kubernetes>/keys).
+	if err := checkReposForKeyMaterial(opts, dirs[1].path, []string{dirs[0].path, dirs[1].path, dirs[2].path}); err != nil {
+		return err
 	}
 
 	for _, d := range dirs {
@@ -112,6 +120,43 @@ func ExecuteInitRepos(opts InitReposOptions) error {
 	}
 	fmt.Println()
 	return nil
+}
+
+// checkReposForKeyMaterial writes a .gitignore with keys/ into the kubernetes directory and
+// returns an error listing every private-key file found in the directories to be committed.
+func checkReposForKeyMaterial(opts InitReposOptions, kubernetesDir string, paths []string) error {
+	keysWorkspace := opts.WorkspaceDir
+	if keysWorkspace == "" && kubernetesDir != "" {
+		keysWorkspace = filepath.Dir(kubernetesDir)
+	}
+	keysDir, _ := KeysDirForWorkspace(keysWorkspace)
+
+	var errs []error
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+			continue
+		}
+		if p == kubernetesDir {
+			if err := ensureGitignoreEntry(abs, kubernetesGitignoreEntry); err != nil {
+				return err
+			}
+		}
+		findings, err := findPrivateKeyMaterial(abs)
+		if err != nil {
+			return fmt.Errorf("scan %s for private keys: %w", abs, err)
+		}
+		if len(findings) > 0 {
+			errs = append(errs, &KeyMaterialError{Dir: abs, Findings: findings, KeysDir: keysDir})
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // parseGitHubOwner returns the owner from "github.com/someone" or "someone".

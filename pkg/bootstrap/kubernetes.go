@@ -47,6 +47,19 @@ func BootstrapKubernetes(global config.GlobalConfig, project *config.ProjectConf
 		return fmt.Errorf("failed to create blcli marker: %w", err)
 	}
 
+	// Keep generated private keys out of the kubernetes repository: ignore keys/ in git
+	// and move keys an older blcli wrote to <kubernetes>/keys to the workspace keys dir.
+	if err := ensureGitignoreEntry(kubernetesDir, kubernetesGitignoreEntry); err != nil {
+		return err
+	}
+	keysDir, err := KeysDirForWorkspace(workspace)
+	if err != nil {
+		return err
+	}
+	if err := migrateLegacyKeysDir(kubernetesDir, keysDir, os.Stdout); err != nil {
+		return err
+	}
+
 	if err := runKubernetesInitScript(templateLoader, templateArgs, workspace, kubernetesDir, overwrite); err != nil {
 		return err
 	}

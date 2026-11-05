@@ -162,7 +162,11 @@ blcli check
   - `stg/hello-world/`
   - `stg/hello-world-2/`
   - `prd/hello-world/`
-- An SSH deploy key (`argocd_github.pub`) added to that repository
+- An SSH deploy key (`argocd_github.pub`) added to that repository as a **read-only** deploy key.
+  `blcli init` generates the key pair in `<workspace>/.blcli-keys/` (mode 0700, set `BLCLI_KEYS_DIR`
+  to use another directory), next to and never inside the `terraform`, `kubernetes` and `gitops`
+  directories. Older blcli versions wrote it to `<workspace>/kubernetes/keys/`; `blcli init` moves
+  it out. If that directory was ever committed or pushed, treat the key as leaked and rotate it.
 - GitOps repo URLs in **SSH format** (`git@github.com:org/repo.git`) in `.env` — HTTP URLs will cause ArgoCD auth failures
 - ArgoCD sealed secret generated **without** the `useSshAgent` field (its presence breaks SSH authentication)
 
@@ -767,6 +771,12 @@ blcli apply init-repos -d ./workspace/output --org my-github-org
 | `--terraform-dir` | | `{dir}/terraform` | Override terraform path |
 | `--kubernetes-dir` | | `{dir}/kubernetes` | Override kubernetes path |
 | `--gitops-dir` | | `{dir}/gitops` | Override gitops path |
+
+Before running any git or `gh` command, `init-repos` checks the three directories for private-key
+material and refuses to continue if it finds any: files with a PEM/OpenSSH private key header,
+file names `id_*` (except `*.pub`), `*.pem`, `*.key`, `*.p12`, `*.pfx`, and `keys/` directories
+that hold more than public keys. A `.gitignore` entry does not count: move the files out of the
+directory and run the command again. It also adds `keys/` to `kubernetes/.gitignore`.
 
 ---
 
