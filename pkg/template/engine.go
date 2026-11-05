@@ -34,22 +34,22 @@ func toMapStringInterface(v interface{}) map[string]interface{} {
 // templates from the template repository. All templates are loaded dynamically
 // via template.Loader from the specified GitHub repository.
 
-// defaultFunc implements the default template function
-// Usage in template: {{ .Value | default "defaultValue" }}
-// In Go template pipeline, the first argument is the piped value, second is the function argument
-// Returns the value if it's not empty, otherwise returns the default value
-func defaultFunc(val interface{}, defaultVal interface{}) interface{} {
+// defaultFunc implements the default template function with Sprig's argument order.
+// Go templates pass a piped value as the last argument, so both forms
+//
+//	{{ default "fallback" .Value }}
+//	{{ .Value | default "fallback" }}
+//
+// call defaultFunc("fallback", .Value). It returns val unless val is nil (unset or
+// missing key) or the empty string. Unlike Sprig, an explicit false or 0 is kept,
+// so `enabled: false` in args survives a `default true` in the template.
+func defaultFunc(defaultVal interface{}, val interface{}) interface{} {
 	if val == nil {
 		return defaultVal
 	}
-	// Check if value is empty string
-	if str, ok := val.(string); ok {
-		if str == "" {
-			return defaultVal
-		}
-		return str
+	if str, ok := val.(string); ok && str == "" {
+		return defaultVal
 	}
-	// For other types, return the value if not nil
 	return val
 }
 
@@ -108,37 +108,27 @@ func RenderWithArgs(tmplStr string, data interface{}, args renderer.ArgsData) (s
 		}
 	}
 
-	// Merge args into dataMap (args take precedence for conflicting keys)
-	// Also flatten global and terraform.global to top level for easier template access
+	// Merge args into dataMap. Layers are applied in a fixed order, lowest
+	// precedence first, so a key present in two layers always resolves the same way:
+	//  1. data (backward compatibility)
+	//  2. args.global flattened to top level (it may already be merged from several sources)
+	//  3. args.terraform.global flattened to top level (more specific than global)
+	//  4. top-level args keys: component parameters and values the caller has already
+	//     flattened with their own precedence
+	if globalMap := toMapStringInterface(args[renderer.FieldGlobal]); globalMap != nil {
+		for gk, gv := range globalMap {
+			dataMap[gk] = gv
+		}
+	}
+	if terraformMap := toMapStringInterface(args[renderer.FieldTerraform]); terraformMap != nil {
+		if globalMap := toMapStringInterface(terraformMap[renderer.FieldGlobal]); globalMap != nil {
+			for gk, gv := range globalMap {
+				dataMap[gk] = gv
+			}
+		}
+	}
 	for k, v := range args {
 		dataMap[k] = v
-
-		// Flatten global to top level (args.global may already be merged from multiple sources)
-		if k == renderer.FieldGlobal {
-			globalMap := toMapStringInterface(v)
-			if globalMap != nil {
-				for gk, gv := range globalMap {
-					dataMap[gk] = gv
-				}
-			}
-		}
-
-		// Flatten terraform.global to top level.
-		// terraform.global is more specific than top-level global and should override
-		// conflicting keys during rendering.
-		if k == renderer.FieldTerraform {
-			terraformMap := toMapStringInterface(v)
-			if terraformMap != nil {
-				if tfGlobal, ok := terraformMap[renderer.FieldGlobal]; ok {
-					globalMap := toMapStringInterface(tfGlobal)
-					if globalMap != nil {
-						for gk, gv := range globalMap {
-							dataMap[gk] = gv
-						}
-					}
-				}
-			}
-		}
 	}
 
 	return Render(tmplStr, dataMap)

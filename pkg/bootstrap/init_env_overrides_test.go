@@ -1,6 +1,7 @@
 package bootstrap_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -50,7 +51,10 @@ var _ = Describe("Init env overrides", func() {
 		err = os.WriteFile(envPath, []byte(""+
 			"BLCLI_ARGOCD_GIT_REPOSITORY_URL=git@github.com:example/infra-gitops.git\n"+
 			"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID=client-id\n"+
-			"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET=client-secret\n"+
+			"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET=client-secret-shared\n"+
+			"BLCLI_ARGOCD_PRD_DEX_GITHUB_CLIENT_SECRET=client-secret-prd\n"+
+			"BLCLI_ARGOCD_STG_GITHUB_AUTH_CLIENT_SECRET=client-secret-stg\n"+
+			"ARGOCD_DEX_GITHUB_CLIENT_SECRET=client-secret-plain\n"+
 			"BLCLI_ARGOCD_DEX_GITHUB_ORGS=org-a,org-b\n"), 0644)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -99,10 +103,51 @@ var _ = Describe("Init env overrides", func() {
 			Expect(parameters["GitRepositoryURL"]).To(Equal("git@github.com:example/infra-gitops.git"))
 			Expect(parameters["DexGitHubEnabled"]).To(Equal(true))
 			Expect(parameters["DexGitHubClientID"]).To(Equal("client-id"))
-			Expect(parameters["DexGitHubClientSecret"]).To(Equal("client-secret"))
+			Expect(parameters).NotTo(HaveKey("DexGitHubClientSecret"))
 			Expect(parameters["DexGitHubOrgs"]).To(Equal([]string{"org-a", "org-b"}))
 			Expect(parameters["namespace"]).To(Equal("argocd"))
+
+			dexConfig := parameters["DexConfig"].(map[string]interface{})
+			connector := dexConfig["connectors"].([]interface{})[0].(map[string]interface{})
+			connectorConfig := connector["config"].(map[string]interface{})
+			Expect(connectorConfig).To(HaveKeyWithValue("clientID", "client-id"))
+			Expect(connectorConfig).NotTo(HaveKey("clientSecret"))
 		}
+
+		// No Dex client secret value reaches the args, under any key.
+		Expect(fmt.Sprintf("%v", merged)).NotTo(ContainSubstring("client-secret"))
+	})
+
+	It("should ignore a Dex client secret even when it is the only ArgoCD value", func() {
+		workspace, err := setupTestWorkspace()
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanupTestWorkspace(workspace)
+
+		envPath := filepath.Join(workspace, "secret-only.env")
+		Expect(os.WriteFile(envPath, []byte("BLCLI_ARGOCD_CORP_DEX_GITHUB_CLIENT_SECRET=XXXXXXXX\n"), 0644)).To(Succeed())
+
+		base := renderer.ArgsData{
+			"kubernetes": map[string]interface{}{
+				renderer.FieldProjects: []interface{}{
+					map[string]interface{}{
+						renderer.FieldName: "corp",
+						renderer.FieldComponents: []interface{}{
+							map[string]interface{}{
+								renderer.FieldName: "2-argocd",
+								"parameters":       map[string]interface{}{"namespace": "argocd"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		merged, err := bootstrap.ApplyInitEnvOverrides(base, []string{envPath})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fmt.Sprintf("%v", merged)).NotTo(ContainSubstring("XXXXXXXX"))
+		parameters := merged["kubernetes"].(map[string]interface{})[renderer.FieldProjects].([]interface{})[0].(map[string]interface{})[renderer.FieldComponents].([]interface{})[0].(map[string]interface{})["parameters"].(map[string]interface{})
+		Expect(parameters).NotTo(HaveKey("DexGitHubEnabled"))
+		Expect(parameters).NotTo(HaveKey("DexConfig"))
 	})
 
 	It("should auto-discover .env next to the first args file", func() {

@@ -79,6 +79,13 @@ func ExecuteApplyKubernetes(opts ApplyKubernetesOptions, templateLoader *templat
 	if _, err := os.Stat(opts.KubernetesDir); os.IsNotExist(err) {
 		return fmt.Errorf("kubernetes directory not found: %s", opts.KubernetesDir)
 	}
+	if opts.KeysDir == "" {
+		keysDir, err := resolveApplyKeysDir(opts.KubernetesDir, os.Stdout)
+		if err != nil {
+			return fmt.Errorf("resolve keys dir: %w", err)
+		}
+		opts.KeysDir = keysDir
+	}
 
 	// Check if kubectl is available
 	if _, err := exec.LookPath("kubectl"); err != nil {
@@ -792,6 +799,9 @@ func applyWithCustomWithProgress(ctx context.Context, opts ApplyKubernetesOption
 	}
 	if opts.Context != "" {
 		env = append(env, fmt.Sprintf("KUBECTL_CONTEXT=%s", opts.Context))
+	}
+	if opts.KeysDir != "" {
+		env = append(env, keysDirEnv(opts.KeysDir)...)
 	}
 	result, err := runExternalCommandResult(ctx, ExternalCommandSpec{
 		Name: "sh",

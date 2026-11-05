@@ -97,6 +97,48 @@ var _ = Describe("BootstrapGitops", func() {
 			Expect(string(content)).To(ContainSubstring(`"-text=Hello from hello-world"`))
 		})
 
+		It("should apply app parameters read through default, in any spelling", func() {
+			global := config.GlobalConfig{
+				Workspace: workspace,
+			}
+
+			templateArgs := renderer.ArgsData{
+				"gitops": map[string]interface{}{
+					"argocd": map[string]interface{}{
+						"project": []interface{}{"stg"},
+					},
+					"apps": []interface{}{
+						map[string]interface{}{
+							"name": "payments",
+							"kind": "deployment",
+							"project": []interface{}{
+								map[string]interface{}{
+									"name": "stg",
+									"parameters": map[string]interface{}{
+										"ApplicationName":        "payments",
+										"ApplicationNamespace":   "argocd",
+										"DestinationNamespace":   "payments",
+										"destination-server":     "https://10.0.0.1",
+										"source-target-revision": "v1.2.3",
+										"SourcePath":             "stg/payments",
+										"SourceRepoURL":          "https://github.com/example/gitops.git",
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			Expect(bootstrap.BootstrapGitops(global, nil, loader, templateArgs)).To(Succeed())
+
+			appContent, err := os.ReadFile(filepath.Join(workspace, "gitops", "stg", "payments", "app.yaml"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(appContent)).To(ContainSubstring("namespace: payments"))
+			Expect(string(appContent)).To(ContainSubstring("server: https://10.0.0.1"))
+			Expect(string(appContent)).To(ContainSubstring("targetRevision: v1.2.3"))
+		})
+
 		It("should return error when template loader is nil", func() {
 			global := config.GlobalConfig{Workspace: workspace}
 			templateArgs := renderer.ArgsData{

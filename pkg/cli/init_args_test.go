@@ -79,7 +79,11 @@ var _ = Describe("InitArgs", func() {
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_PRD_RBAC_GROUP_PREFIX=example-org"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_STG_RBAC_GROUP_PREFIX=example-org"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_DEX_GITHUB_CLIENT_ID=XXXXXXX"))
-				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_DEX_GITHUB_CLIENT_SECRET=XXXXXXXX"))
+				// The Dex client secret is never written: only a hint to set it at install time.
+				Expect(string(envContent)).NotTo(ContainSubstring("CLIENT_SECRET="))
+				Expect(string(envContent)).To(ContainSubstring("# DEX_GITHUB_CLIENT_SECRET (gen_dex_sealed_secret.sh)"))
+				Expect(string(content)).NotTo(ContainSubstring("clientSecret:"))
+				Expect(string(content)).NotTo(ContainSubstring("DexGitHubClientSecret"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_DEX_GITHUB_ORGS=example-org"))
 				Expect(string(envContent)).To(ContainSubstring("BLCLI_ARGOCD_CORP_RBAC_GROUP_PREFIX=example-org"))
 			})

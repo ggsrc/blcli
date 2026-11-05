@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -281,6 +282,13 @@ func generateArgsFile(repoURL, outputPath, format, org, profile string, forceUpd
 	// Resolve ${project.<name>.id} placeholders to actual project IDs
 	resolveProjectPlaceholders(&argsConfig)
 
+	// The Dex GitHub client secret never goes into an args file, even if an older
+	// template's default.yaml still carries a value or placeholder for it.
+	if removed := stripDexClientSecrets(&argsConfig); len(removed) > 0 {
+		fmt.Printf("Not writing the Dex GitHub client secret to args (%s): the argocd install seals it from DEX_GITHUB_CLIENT_SECRET (gen_dex_sealed_secret.sh).\n",
+			strings.Join(removed, ", "))
+	}
+
 	if wizard != nil {
 		applyWizardOverrides(&argsConfig, *wizard)
 	}
@@ -438,14 +446,12 @@ func writeInitArgsEnvFile(path string, data *ArgsConfig) error {
 				envValues[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_ID", projectKey)],
 			)
 			lines = append(lines, "")
-			lines = appendEnvVar(lines,
-				[]string{
-					"GitHub OAuth App Client Secret for ArgoCD Dex login.",
-				},
-				fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_SECRET", projectKey),
-				envValues[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_SECRET", projectKey)],
+			lines = append(lines,
+				"# GitHub OAuth App Client Secret: never stored in this file, args or rendered files.",
+				"# argocd-cm references a sealed Secret; the argocd install seals the value from",
+				"# DEX_GITHUB_CLIENT_SECRET (gen_dex_sealed_secret.sh). Export it only when running the install.",
+				"",
 			)
-			lines = append(lines, "")
 			lines = appendEnvVar(lines,
 				[]string{
 					"Comma-separated GitHub org(s) allowed to log in via Dex.",
@@ -477,14 +483,13 @@ func writeInitArgsEnvFile(path string, data *ArgsConfig) error {
 
 func extractInitArgsEnvValues(data *ArgsConfig) map[string]string {
 	values := map[string]string{
-		"BLCLI_TERRAFORM_ORGANIZATION_ID":       "",
-		"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID":    "",
-		"BLCLI_GITOPS_SOURCE_REPO_URL":          "",
-		"BLCLI_ARGOCD_GIT_REPOSITORY_URL":       "",
-		"BLCLI_ARGOCD_URL":                      "",
-		"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID":     "",
-		"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET": "",
-		"BLCLI_ARGOCD_DEX_GITHUB_ORGS":          "",
+		"BLCLI_TERRAFORM_ORGANIZATION_ID":    "",
+		"BLCLI_TERRAFORM_BILLING_ACCOUNT_ID": "",
+		"BLCLI_GITOPS_SOURCE_REPO_URL":       "",
+		"BLCLI_ARGOCD_GIT_REPOSITORY_URL":    "",
+		"BLCLI_ARGOCD_URL":                   "",
+		"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID":  "",
+		"BLCLI_ARGOCD_DEX_GITHUB_ORGS":       "",
 	}
 
 	if data != nil && data.Terraform.Global != nil {
@@ -520,11 +525,6 @@ func extractInitArgsEnvValues(data *ArgsConfig) map[string]string {
 				extractDexGithubString(params["DexConfig"], "clientID"),
 				extractDexGithubString(params["dex-config"], "clientID"),
 			)
-			projectValues["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET"] = firstNonEmptyString(
-				stringifyValue(params["DexGitHubClientSecret"]),
-				extractDexGithubString(params["DexConfig"], "clientSecret"),
-				extractDexGithubString(params["dex-config"], "clientSecret"),
-			)
 			projectValues["BLCLI_ARGOCD_DEX_GITHUB_ORGS"] = firstNonEmptyString(
 				joinStringSlice(params["DexGitHubOrgs"]),
 				extractDexGithubOrgs(params["DexConfig"]),
@@ -537,7 +537,6 @@ func extractInitArgsEnvValues(data *ArgsConfig) map[string]string {
 			projectKey := strings.ToUpper(project.Name)
 			values[fmt.Sprintf("BLCLI_ARGOCD_%s_URL", projectKey)] = projectValues["BLCLI_ARGOCD_URL"]
 			values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_ID", projectKey)] = projectValues["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID"]
-			values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_SECRET", projectKey)] = projectValues["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET"]
 			values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_ORGS", projectKey)] = projectValues["BLCLI_ARGOCD_DEX_GITHUB_ORGS"]
 			values[fmt.Sprintf("BLCLI_ARGOCD_%s_RBAC_GROUP_PREFIX", projectKey)] = projectValues["BLCLI_ARGOCD_RBAC_GROUP_PREFIX"]
 			break
@@ -547,7 +546,6 @@ func extractInitArgsEnvValues(data *ArgsConfig) map[string]string {
 	values["BLCLI_ARGOCD_GIT_REPOSITORY_URL"] = firstNonEmptyProjectValue(projectArgocdValues, "BLCLI_ARGOCD_GIT_REPOSITORY_URL")
 	values["BLCLI_ARGOCD_URL"] = firstNonEmptyProjectValue(projectArgocdValues, "BLCLI_ARGOCD_URL")
 	values["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID"] = firstNonEmptyProjectValue(projectArgocdValues, "BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID")
-	values["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET"] = firstNonEmptyProjectValue(projectArgocdValues, "BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET")
 	values["BLCLI_ARGOCD_DEX_GITHUB_ORGS"] = firstNonEmptyProjectValue(projectArgocdValues, "BLCLI_ARGOCD_DEX_GITHUB_ORGS")
 
 	for _, projectName := range extractKubernetesProjectNames(data) {
@@ -559,10 +557,6 @@ func extractInitArgsEnvValues(data *ArgsConfig) map[string]string {
 		values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_ID", projectKey)] = firstNonEmptyString(
 			values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_ID", projectKey)],
 			values["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_ID"],
-		)
-		values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_SECRET", projectKey)] = firstNonEmptyString(
-			values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_SECRET", projectKey)],
-			values["BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET"],
 		)
 		values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_ORGS", projectKey)] = firstNonEmptyString(
 			values[fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_ORGS", projectKey)],
@@ -801,6 +795,62 @@ func extractDexGithubString(v interface{}, key string) string {
 		return stringifyValue(cfg[key])
 	}
 	return ""
+}
+
+// stripDexClientSecrets removes Dex GitHub client secret values from kubernetes component
+// parameters: DexGitHubClientSecret (any spelling) and clientSecret inside dex connectors
+// (DexConfig / dex-config). clientSecretRef, a reference to a Secret, is kept. It returns
+// "<project>/<component>.<key>" for every value it removed.
+func stripDexClientSecrets(cfg *ArgsConfig) []string {
+	var removed []string
+	if cfg == nil {
+		return nil
+	}
+	for _, project := range cfg.Kubernetes.Projects {
+		for _, component := range project.Components {
+			for key, value := range component.Parameters {
+				where := fmt.Sprintf("%s/%s.%s", project.Name, component.Name, key)
+				switch renderer.CanonicalArgKey(key) {
+				case "dexgithubclientsecret":
+					delete(component.Parameters, key)
+					removed = append(removed, where)
+				case "dexconfig":
+					if stripConnectorClientSecrets(value) {
+						removed = append(removed, where+".connectors[].config.clientSecret")
+					}
+				}
+			}
+		}
+	}
+	sort.Strings(removed)
+	return removed
+}
+
+func stripConnectorClientSecrets(dexConfig interface{}) bool {
+	configMap, ok := dexConfig.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	connectors, ok := configMap["connectors"].([]interface{})
+	if !ok {
+		return false
+	}
+	stripped := false
+	for _, connector := range connectors {
+		connectorMap, ok := connector.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		cfg, ok := connectorMap["config"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if _, has := cfg["clientSecret"]; has {
+			delete(cfg, "clientSecret")
+			stripped = true
+		}
+	}
+	return stripped
 }
 
 func extractDexGithubOrgs(v interface{}) string {

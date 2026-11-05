@@ -118,11 +118,10 @@ func BootstrapGitops(global config.GlobalConfig, project *config.ProjectConfig, 
 				continue
 			}
 
-			// Build template context: params as-is, plus APP_NAME/APP_IMAGE/APP_VERSION for templates that use them
+			// Build template context: params under their own key, PascalCase and lowerCamelCase,
+			// plus APP_NAME/APP_IMAGE/APP_VERSION for templates that use them
 			ctx := make(renderer.ArgsData)
-			for k, v := range params {
-				ctx[k] = v
-			}
+			renderer.AddArgAliases(ctx, params)
 			appImage, _ := app["image"].(string)
 			appVersion := "1.0.0"
 			if rev, ok := params["ApplicationRevision"]; ok {

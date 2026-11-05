@@ -80,7 +80,9 @@ var _ = Describe("Kubernetes Init", func() {
 			kustomizationPath := filepath.Join(componentDir, "kustomization.yaml")
 			content, err := os.ReadFile(kustomizationPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(string(content)).To(ContainSubstring("https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.32.2/controller.yaml"))
+			// The template either fetches controller.yaml by URL or vendors it next to the kustomization.
+			Expect(string(content)).To(ContainSubstring("kind: Kustomization"))
+			Expect(string(content)).To(ContainSubstring("controller.yaml"))
 			Expect(string(content)).NotTo(ContainSubstring("<no value>"))
 		})
 

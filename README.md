@@ -162,7 +162,11 @@ blcli check
   - `stg/hello-world/`
   - `stg/hello-world-2/`
   - `prd/hello-world/`
-- An SSH deploy key (`argocd_github.pub`) added to that repository
+- An SSH deploy key (`argocd_github.pub`) added to that repository as a **read-only** deploy key.
+  `blcli init` generates the key pair in `<workspace>/keys/` (mode 0700, set `BLCLI_KEYS_DIR`
+  to use another directory), next to and never inside the `terraform`, `kubernetes` and `gitops`
+  directories. Older blcli versions wrote it to `<workspace>/kubernetes/keys/`; `blcli init` moves
+  it out. If that directory was ever committed or pushed, treat the key as leaked and rotate it.
 - GitOps repo URLs in **SSH format** (`git@github.com:org/repo.git`) in `.env` — HTTP URLs will cause ArgoCD auth failures
 - ArgoCD sealed secret generated **without** the `useSshAgent` field (its presence breaks SSH authentication)
 
@@ -197,8 +201,11 @@ blcli check
     ```
 
 - Save and securely store:
-  - Client ID
-  - Client Secret
+  - Client ID (goes into args or `.env` as `BLCLI_ARGOCD_<PROJECT>_DEX_GITHUB_CLIENT_ID`)
+  - Client Secret: never put it in args, `.env` or the generated repositories. When you run the ArgoCD
+    install, export it as `DEX_GITHUB_CLIENT_SECRET` (or answer the prompt); the template's
+    `gen_dex_sealed_secret.sh` seals it into a SealedSecret that `argocd-cm` references.
+    `blcli apply kubernetes` passes `DEX_GITHUB_CLIENT_SECRET` through from your environment only.
 
 ### 4. Local Environment Setup (GCP Authentication)
 
@@ -363,7 +370,8 @@ terraform:
             deletion_protection: true
 ```
 
-Edit `.env` to provide secrets and SSH-format GitOps URLs:
+Edit `.env` to provide SSH-format GitOps URLs and other overrides (not the Dex client secret, see
+[OAuth Application for Argo CD](#3-oauth-application-for-argo-cd)):
 
 ```bash
 BLCLI_GITOPS_SOURCE_REPO_URL=git@github.com:my-org/infra-gitops.git
@@ -768,6 +776,12 @@ blcli apply init-repos -d ./workspace/output --org my-github-org
 | `--kubernetes-dir` | | `{dir}/kubernetes` | Override kubernetes path |
 | `--gitops-dir` | | `{dir}/gitops` | Override gitops path |
 
+Before running any git or `gh` command, `init-repos` checks the three directories for private-key
+material and refuses to continue if it finds any: files with a PEM/OpenSSH private key header,
+file names `id_*` (except `*.pub`), `*.pem`, `*.key`, `*.p12`, `*.pfx`, and `keys/` directories
+that hold more than public keys. A `.gitignore` entry does not count: move the files out of the
+directory and run the command again. It also adds `keys/` to `kubernetes/.gitignore`.
+
 ---
 
 ### `blcli destroy`
@@ -965,7 +979,11 @@ BLCLI_GITOPS_PRD_HELLO_WORLD_APPLICATION_REPO=git@github.com:my-org/infra-gitops
 BLCLI_ARGOCD_GIT_REPOSITORY_URL="git@github.com:my-org/infra-gitops.git"
 ```
 
-> Values already set in `args.yaml` are **not** overridden by `.env`. Use `.env` only for secrets and values absent from `args.yaml`.
+> Values already set in `args.yaml` are **not** overridden by `.env`. Use `.env` only for values absent from `args.yaml`.
+>
+> `.env` values end up in the rendered files, so blcli ignores Dex client secret variables
+> (`BLCLI_ARGOCD_[<PROJECT>_]DEX_GITHUB_CLIENT_SECRET`, `..._GITHUB_AUTH_CLIENT_SECRET`) with a one-line
+> notice. Export `DEX_GITHUB_CLIENT_SECRET` when running the ArgoCD install instead.
 
 ---
 
