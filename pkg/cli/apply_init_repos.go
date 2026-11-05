@@ -60,6 +60,9 @@ Examples:
 				gitopsDir = fmt.Sprintf("%s/gitops", initReposDir)
 			}
 
+			// Flags are valid from here on; runtime errors (such as refusing to commit
+			// private keys) should not be buried under the usage text.
+			cmd.SilenceUsage = true
 			return bootstrap.ExecuteInitRepos(bootstrap.InitReposOptions{
 				WorkspaceDir:  initReposDir,
 				TerraformDir:  tfDir,
