@@ -201,8 +201,11 @@ blcli check
     ```
 
 - Save and securely store:
-  - Client ID
-  - Client Secret
+  - Client ID (goes into args or `.env` as `BLCLI_ARGOCD_<PROJECT>_DEX_GITHUB_CLIENT_ID`)
+  - Client Secret: never put it in args, `.env` or the generated repositories. When you run the ArgoCD
+    install, export it as `DEX_GITHUB_CLIENT_SECRET` (or answer the prompt); the template's
+    `gen_dex_sealed_secret.sh` seals it into a SealedSecret that `argocd-cm` references.
+    `blcli apply kubernetes` passes `DEX_GITHUB_CLIENT_SECRET` through from your environment only.
 
 ### 4. Local Environment Setup (GCP Authentication)
 
@@ -367,7 +370,8 @@ terraform:
             deletion_protection: true
 ```
 
-Edit `.env` to provide secrets and SSH-format GitOps URLs:
+Edit `.env` to provide SSH-format GitOps URLs and other overrides (not the Dex client secret, see
+[OAuth Application for Argo CD](#3-oauth-application-for-argo-cd)):
 
 ```bash
 BLCLI_GITOPS_SOURCE_REPO_URL=git@github.com:my-org/infra-gitops.git
@@ -975,7 +979,11 @@ BLCLI_GITOPS_PRD_HELLO_WORLD_APPLICATION_REPO=git@github.com:my-org/infra-gitops
 BLCLI_ARGOCD_GIT_REPOSITORY_URL="git@github.com:my-org/infra-gitops.git"
 ```
 
-> Values already set in `args.yaml` are **not** overridden by `.env`. Use `.env` only for secrets and values absent from `args.yaml`.
+> Values already set in `args.yaml` are **not** overridden by `.env`. Use `.env` only for values absent from `args.yaml`.
+>
+> `.env` values end up in the rendered files, so blcli ignores Dex client secret variables
+> (`BLCLI_ARGOCD_[<PROJECT>_]DEX_GITHUB_CLIENT_SECRET`, `..._GITHUB_AUTH_CLIENT_SECRET`) with a one-line
+> notice. Export `DEX_GITHUB_CLIENT_SECRET` when running the ArgoCD install instead.
 
 ---
 

@@ -150,3 +150,29 @@ func containsString(list []string, s string) bool {
 	}
 	return false
 }
+
+// The argocd install seals the Dex client secret from DEX_GITHUB_CLIENT_SECRET. blcli
+// passes the caller's environment through unchanged and never sets it from args.
+func TestApplyCustomInstallPassesDexClientSecretFromEnvironment(t *testing.T) {
+	componentDir := t.TempDir()
+	var env []string
+	withFakeExternalExecutor(t, func(ctx context.Context, spec ExternalCommandSpec, mode externalCommandOutputMode) (ExternalCommandResult, error) {
+		env = spec.Env
+		return fakeExternalResult(spec, ""), nil
+	})
+	component := template.KubernetesComponent{Name: "argocd", Install: "bash ./install"}
+
+	t.Setenv(DexClientSecretInstallEnv, "from-environment")
+	if err := applyWithCustomWithProgress(context.Background(), ApplyKubernetesOptions{KeysDir: t.TempDir()}, component, componentDir, progressStepLogger{}); err != nil {
+		t.Fatalf("applyWithCustomWithProgress() error = %v", err)
+	}
+	var found []string
+	for _, e := range env {
+		if strings.HasPrefix(e, DexClientSecretInstallEnv+"=") {
+			found = append(found, e)
+		}
+	}
+	if len(found) != 1 || found[0] != DexClientSecretInstallEnv+"=from-environment" {
+		t.Errorf("install env %s entries = %v, want exactly the caller's value", DexClientSecretInstallEnv, found)
+	}
+}

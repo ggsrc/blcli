@@ -32,6 +32,14 @@ All notable changes to blcli are documented in this file.
   the terraform, kubernetes and gitops directories for private-key material (PEM/OpenSSH private key
   headers, `id_*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `keys/` directories) and stops with the list
   of findings.
+- **Dex GitHub client secret never reaches args or rendered files**: `init-args` no longer writes
+  `BLCLI_ARGOCD_<PROJECT>_DEX_GITHUB_CLIENT_SECRET` to `.env` (a comment points to
+  `DEX_GITHUB_CLIENT_SECRET` at install time) and drops `DexGitHubClientSecret` and connector
+  `clientSecret` values from generated args. `init` / `check args` ignore `*_DEX_GITHUB_CLIENT_SECRET`
+  and `*_GITHUB_AUTH_CLIENT_SECRET` in `.env` with a one-line notice. The template's ArgoCD install
+  seals the secret from `DEX_GITHUB_CLIENT_SECRET` (`gen_dex_sealed_secret.sh`), which
+  `apply kubernetes` passes through from the environment only. If a client secret was ever
+  committed in an args file, `.env` or a rendered `argocd-cm`, rotate it on GitHub.
 - **Render precedence**: when a key is set at several levels, the more specific level always wins
   (repository global < `terraform.global` < project global < component parameters). The result used
   to depend on Go map iteration order.

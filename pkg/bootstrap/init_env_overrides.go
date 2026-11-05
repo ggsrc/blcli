@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	k8sbootstrap "blcli/pkg/bootstrap/kubernetes"
@@ -14,16 +15,37 @@ import (
 )
 
 const (
-	argocdGitRepositoryURLKey   = "GitRepositoryURL"
-	argocdGitRepositoriesKey    = "GitRepositories"
-	argocdGitSSHSecretNameKey   = "GitSSHSecretName"
-	argocdGitSSHSecretKeyKey    = "GitSSHSecretKey"
-	argocdURLKey                = "ArgoCDURL"
-	argocdDexGitHubEnabledKey   = "DexGitHubEnabled"
-	argocdDexGitHubClientIDKey  = "DexGitHubClientID"
-	argocdDexGitHubClientSecret = "DexGitHubClientSecret"
-	argocdDexGitHubOrgsKey      = "DexGitHubOrgs"
+	argocdGitRepositoryURLKey  = "GitRepositoryURL"
+	argocdGitRepositoriesKey   = "GitRepositories"
+	argocdGitSSHSecretNameKey  = "GitSSHSecretName"
+	argocdGitSSHSecretKeyKey   = "GitSSHSecretKey"
+	argocdURLKey               = "ArgoCDURL"
+	argocdDexGitHubEnabledKey  = "DexGitHubEnabled"
+	argocdDexGitHubClientIDKey = "DexGitHubClientID"
+	argocdDexGitHubOrgsKey     = "DexGitHubOrgs"
+
+	// DexClientSecretInstallEnv is the variable the template's ArgoCD install
+	// (gen_dex_sealed_secret.sh) seals the Dex GitHub client secret from. blcli never
+	// reads it into args; `apply kubernetes` only passes the caller's environment through.
+	DexClientSecretInstallEnv = "DEX_GITHUB_CLIENT_SECRET"
 )
+
+// dexClientSecretEnvName matches the .env names older blcli versions copied the Dex GitHub
+// client secret from: [BLCLI_]ARGOCD_[<PROJECT>_](DEX_GITHUB|GITHUB_AUTH)_CLIENT_SECRET.
+var dexClientSecretEnvName = regexp.MustCompile(`^(BLCLI_)?ARGOCD_([A-Z0-9_]+_)?(DEX_GITHUB|GITHUB_AUTH)_CLIENT_SECRET$`)
+
+// ignoredDexClientSecretEnvNames returns, sorted, the Dex client secret variables that are
+// set (non-empty) in env. Their values are never copied into args or rendered files.
+func ignoredDexClientSecretEnvNames(env map[string]string) []string {
+	var names []string
+	for key, value := range env {
+		if value != "" && dexClientSecretEnvName.MatchString(key) {
+			names = append(names, key)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
 
 // ApplyInitEnvOverrides loads one or more .env files and overlays supported values on top of args data.
 // Earlier env files override later ones, mirroring --args semantics.
@@ -37,6 +59,10 @@ func ApplyInitEnvOverrides(base renderer.ArgsData, envPaths []string) (renderer.
 		envMap, err := loadEnvFile(envPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load env file %s: %w", envPath, err)
+		}
+		if names := ignoredDexClientSecretEnvNames(envMap); len(names) > 0 {
+			fmt.Printf("Ignoring %s in %s: the Dex GitHub client secret is never written to args or rendered files; the argocd install seals it from %s (gen_dex_sealed_secret.sh).\n",
+				strings.Join(names, ", "), envPath, DexClientSecretInstallEnv)
 		}
 
 		override, err := buildEnvOverrideArgs(base, envMap)
@@ -231,18 +257,9 @@ func buildArgoCDParameterOverrides(env map[string]string, projectName string) (m
 		params[argocdDexGitHubEnabledKey] = true
 	}
 
-	clientSecret := firstNonEmpty(env,
-		fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_CLIENT_SECRET", projectKey),
-		fmt.Sprintf("BLCLI_ARGOCD_%s_GITHUB_AUTH_CLIENT_SECRET", projectKey),
-		"BLCLI_ARGOCD_DEX_GITHUB_CLIENT_SECRET",
-		"BLCLI_ARGOCD_GITHUB_AUTH_CLIENT_SECRET",
-		"ARGOCD_DEX_GITHUB_CLIENT_SECRET",
-		"ARGOCD_GITHUB_AUTH_CLIENT_SECRET",
-	)
-	if clientSecret != "" {
-		params[argocdDexGitHubClientSecret] = clientSecret
-		params[argocdDexGitHubEnabledKey] = true
-	}
+	// The Dex GitHub client secret is deliberately not read here (see
+	// ignoredDexClientSecretEnvNames): argocd-cm only references it, and the argocd
+	// install seals it from DEX_GITHUB_CLIENT_SECRET.
 
 	if enabledValue := firstNonEmpty(env,
 		fmt.Sprintf("BLCLI_ARGOCD_%s_DEX_GITHUB_ENABLED", projectKey),
@@ -280,12 +297,13 @@ func buildArgoCDParameterOverrides(env map[string]string, projectName string) (m
 	return params, nil
 }
 
+// buildDexGitHubConfig builds a GitHub connector from the env overrides. It has no
+// clientSecret: the template renders a reference to the sealed Secret instead.
 func buildDexGitHubConfig(params map[string]interface{}) map[string]interface{} {
 	clientID, _ := params[argocdDexGitHubClientIDKey].(string)
-	clientSecret, _ := params[argocdDexGitHubClientSecret].(string)
 	orgs := toStringSlice(params[argocdDexGitHubOrgsKey])
 
-	if clientID == "" && clientSecret == "" && len(orgs) == 0 {
+	if clientID == "" && len(orgs) == 0 {
 		return nil
 	}
 
@@ -296,9 +314,8 @@ func buildDexGitHubConfig(params map[string]interface{}) map[string]interface{} 
 				"id":   "github",
 				"name": "GitHub",
 				"config": map[string]interface{}{
-					"clientID":     clientID,
-					"clientSecret": clientSecret,
-					"orgs":         buildDexOrgEntries(orgs),
+					"clientID": clientID,
+					"orgs":     buildDexOrgEntries(orgs),
 				},
 			},
 		},
