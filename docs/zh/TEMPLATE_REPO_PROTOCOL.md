@@ -204,7 +204,7 @@ projects:
 | `install` / `upgrade` / `rollback` | string | 可选 |
 | `check` | string | 可选，custom 类型时的检查命令 |
 | `installType` | string | `kubectl`（默认）、`helm`、`custom` |
-| `chart` | string | helm 时可选，如 `bitnami/redis` |
+| `chart` | string | helm 时可选，如 `grafana/grafana` |
 | `namespace` | string | helm 安装的 namespace，默认可用组件名 |
 | `dependencies` | list | 依赖的其他组件 name |
 

@@ -15,8 +15,10 @@ import (
 )
 
 // ComponentChartMapping maps common component names to their helm charts
+// "redis" is intentionally not mapped: Bitnami no longer publishes free Redis images, and a
+// default chart install would run without authentication. Templates ship their own chart
+// (for example bl-template's redis component installs Valkey with ACLs via a custom install).
 var ComponentChartMapping = map[string]string{
-	"redis":         "bitnami/redis",
 	"postgresql":    "bitnami/postgresql",
 	"mysql":         "bitnami/mysql",
 	"mongodb":       "bitnami/mongodb",
